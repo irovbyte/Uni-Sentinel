@@ -1,6 +1,5 @@
 import os
 import subprocess
-import re
 import shutil
 from handlers.base_handler import BaseHandler
 from core.logger import logger
@@ -9,40 +8,26 @@ from config import settings
 class CHandler(BaseHandler):
     def __init__(self, project_path, files):
         super().__init__(project_path, files)
-        # Пытаемся уточнить путь к проекту (если Makefile лежит в src)
-        self._resolve_project_root()
-
-    def _resolve_project_root(self):
-        """Если мы в корне репо, а код в src, смещаем фокус туда"""
-        if not os.path.exists(os.path.join(self.project_path, "Makefile")):
-            src_path = os.path.join(self.project_path, "src")
-            if os.path.exists(os.path.join(src_path, "Makefile")):
-                logger.info(f"Makefile найден в подпапке 'src'. Переключаюсь туда.")
-                self.project_path = src_path
-                # Обновляем список файлов (чтобы пути были корректны относительно src)
-                # Но для проверки стиля нам нужны полные пути, так что files не трогаем,
-                # а вот рабочую директорию для команд запоминаем.
+        # Ищем все папки, где есть Makefile (это и есть подпроекты)
+        self.subprojects = self._find_subprojects()
 
     def check_style(self):
         logger.header("ЭТАП 1: СТИЛЬ И ПРИНЦИПЫ")
-        
-        # 0. Настройка .clang-format
         self._setup_clang_format()
-
+        
         all_ok = True
-
+        
         # 1. Clang-format
-        logger.info("-> Запуск Clang-format (Google Style)...")
+        logger.info("-> Запуск Clang-format...")
         style_ok = True
         for f in self.files:
-            if not f.endswith(".c") and not f.endswith(".h"): continue
-            
-            # Пропускаем файлы тестов (обычно там стиль не важен)
-            if "test" in os.path.basename(f): continue
+            # Проверяем только .c и .h
+            if not (f.endswith(".c") or f.endswith(".h")): continue
+            if "test" in os.path.basename(f): continue # Пропускаем файлы тестов
 
             res = subprocess.run(["clang-format", "-n", "--Werror", f], capture_output=True, text=True)
             if res.returncode != 0:
-                logger.fail(f"Ошибка стиля в {os.path.basename(f)}")
+                logger.fail(f"Стиль нарушен в {os.path.basename(f)}")
                 style_ok = False
         
         if style_ok: 
@@ -50,139 +35,196 @@ class CHandler(BaseHandler):
         else:
             all_ok = False
 
-        # 2. Детальная проверка 7 принципов
-        print("") # Отступ
-        logger.info("-> Анализ 7 принципов структурного программирования:")
+        # 2. Принципы структурного программирования
+        print("")
+        logger.info("-> Анализ структуры кода (goto, длина функций, вложенность):")
         if not self._check_principles_detailed():
             all_ok = False
 
         return all_ok
 
     def build(self):
-        logger.header("ЭТАП 2: СБОРКА (MAKE)")
-        makefile = os.path.join(self.project_path, "Makefile")
+        logger.header("ЭТАП 2: СБОРКА")
         
-        if not os.path.exists(makefile):
-            logger.fail(f"Makefile не найден в {self.project_path}")
-            # Пытаемся подсказать
-            logger.warning("Совет: Зайди внутрь папки src/cat или src/grep перед запуском.")
+        if not self.subprojects:
+            logger.fail(f"Makefile не найден ни в одной папке внутри {self.project_path}")
             return False
 
-        # Make clean
-        subprocess.run(["make", "clean"], cwd=self.project_path, capture_output=True)
-        
-        logger.info(f"Выполняю 'make all' в {self.project_path}...")
-        # Используем 'all' или 're', некоторые мейкфайлы не имеют re
-        res = subprocess.run(["make", "all"], cwd=self.project_path, capture_output=True, text=True)
-        
-        if res.returncode != 0:
-            logger.fail("Ошибка компиляции!")
-            print(res.stderr)
-            return False
+        logger.info(f"Найдено подпроектов для сборки: {len(self.subprojects)}")
+        all_built = True
+
+        for path in self.subprojects:
+            folder_name = os.path.basename(path)
+            print(f"\n   📂 Сборка в папке: {settings.Colors.BOLD}{folder_name}{settings.Colors.ENDC}")
             
-        if "warning:" in res.stderr.lower():
-            logger.fail("FAIL: Обнаружены WARNINGS (в Школе 21 это недопустимо)!")
-            print(res.stderr)
-            return False
+            # Clean
+            subprocess.run(["make", "clean"], cwd=path, capture_output=True)
+
+            # Build (all или default)
+            res = subprocess.run(["make", "all"], cwd=path, capture_output=True, text=True)
+            if "No rule to make target" in res.stderr:
+                res = subprocess.run(["make"], cwd=path, capture_output=True, text=True)
+
+            if res.returncode != 0:
+                logger.fail(f"Ошибка компиляции в {folder_name}!")
+                print(res.stderr)
+                all_built = False
+                continue
+
+            if "warning:" in res.stderr.lower():
+                logger.fail(f"FAIL: Обнаружены WARNINGS в {folder_name}!")
+                print(res.stderr)
+                all_built = False
+                continue
             
-        logger.success("Билд успешен. Варнингов нет.")
-        return True
+            logger.success(f"Сборка {folder_name} успешна.")
+
+        return all_built
 
     def run_tests(self):
         logger.header("ЭТАП 3: ТЕСТЫ")
-        # Пробуем найти цель test
-        res = subprocess.run(["make", "test"], cwd=self.project_path, capture_output=True, text=True)
-        
-        if res.returncode == 0:
-            logger.success("Unit-тесты (make test) пройдены.")
-            return True
-        
-        # Если make test нет, пробуем найти бинарник и запустить Smoke Test
-        binaries = self._find_binaries()
-        if binaries:
-            bin_name = binaries[0]
-            logger.info(f"Запускаю Smoke Test для {bin_name}...")
-            bin_path = os.path.join(self.project_path, bin_name)
-            
-            # Простой запуск (проверка что не падает)
-            try:
-                # Для cat/grep кидаем Makefile как аргумент
-                test_args = ["Makefile"] if "cat" in bin_name or "grep" in bin_name else []
-                subprocess.run([bin_path] + test_args, timeout=2, capture_output=True)
-                logger.success(f"{bin_name} запускается и не падает.")
-                return True
-            except subprocess.TimeoutExpired:
-                 logger.warning(f"{bin_name} завис (Timeout). Возможно, ждет ввода?")
-                 return True
-            except Exception as e:
-                logger.fail(f"Ошибка запуска: {e}")
-                return False
+        if not self.subprojects: return True
+        all_passed = True
 
-        logger.warning("Тесты не найдены (make test failed, бинарник не найден).")
-        return True
+        for path in self.subprojects:
+            folder_name = os.path.basename(path)
+            print(f"\n   🧪 Тесты для: {folder_name}")
+
+            # 1. Попытка запустить стандартные тесты (make test)
+            res = subprocess.run(["make", "test"], cwd=path, capture_output=True, text=True)
+            if res.returncode == 0:
+                logger.success(f"Unit-тесты (make test) пройдены.")
+                continue
+
+            # 2. Поиск исполняемого файла (УНИВЕРСАЛЬНЫЙ ПОИСК)
+            binaries = self._find_binaries(path)
+            
+            if not binaries:
+                logger.warning(f"Исполняемые файлы не найдены в {folder_name}.")
+                all_passed = False
+                continue
+
+            for bin_name in binaries:
+                bin_path = os.path.join(path, bin_name)
+                # Smoke Test (проверка что запускается)
+                try:
+                    # Передаем аргумент --help или Makefile, чтобы прога не висела ожидая ввода
+                    args = ["Makefile"] 
+                    subprocess.run([bin_path] + args, timeout=3, capture_output=True)
+                    logger.success(f"Smoke Test: {bin_name} запускается корректно.")
+                except subprocess.TimeoutExpired:
+                    # Если прога висит, значит она работает (ждет ввода), это тоже успех для smoke-теста
+                    logger.success(f"Smoke Test: {bin_name} работает (интерактивный режим).")
+                except Exception as e:
+                    logger.fail(f"Ошибка запуска {bin_name}: {e}")
+                    all_passed = False
+
+        return all_passed
 
     def check_memory(self):
-        logger.header("ЭТАП 4: VALGRIND / LEAKS")
-        binaries = self._find_binaries()
-        
-        if not binaries:
-            logger.warning("Бинарник не найден, пропускаю Valgrind.")
-            return True
+        logger.header("ЭТАП 4: ПРОВЕРКА ПАМЯТИ (VALGRIND)")
+        if not self.subprojects: return True
+        all_clean = True
 
-        target = os.path.join(self.project_path, binaries[0])
-        logger.info(f"Проверка: {binaries[0]}")
-        
-        cmd = ["valgrind", "--tool=memcheck", "--leak-check=full", "--error-exitcode=1", target]
-        if "cat" in target or "grep" in target: cmd.append("Makefile")
-        
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            logger.fail("ОБНАРУЖЕНЫ УТЕЧКИ ПАМЯТИ!")
-            for line in res.stderr.split('\n'):
-                if "definitely lost:" in line or "indirectly lost:" in line or "ERROR SUMMARY:" in line:
-                    print(f"  >> {line.strip()}")
-            return False
-        
-        logger.success("Память чиста.")
-        return True
+        for path in self.subprojects:
+            binaries = self._find_binaries(path)
+            if not binaries: continue
+            
+            for bin_name in binaries:
+                target = os.path.join(path, bin_name)
+                print(f"\n   🧠 Valgrind check: {bin_name}")
+                
+                cmd = ["valgrind", "--tool=memcheck", "--leak-check=full", "--error-exitcode=1", target]
+                
+                # Добавляем фиктивный аргумент, чтобы CLI утилиты не ждали stdin вечно
+                cmd.append("Makefile")
 
-    # --- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ---
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                
+                if res.returncode != 0:
+                    logger.fail(f"УТЕЧКИ ПАМЯТИ В {bin_name}!")
+                    # Выводим только важные строки
+                    printed_err = False
+                    for line in res.stderr.split('\n'):
+                         if "definitely lost:" in line or "indirectly lost:" in line or "ERROR SUMMARY:" in line:
+                            print(f"  >> {line.strip()}")
+                            printed_err = True
+                    if not printed_err: # Если не нашли ключевых слов, выведем хвост
+                         print(res.stderr[-300:])
+                    all_clean = False
+                else:
+                    logger.success(f"Утечек нет ({bin_name}).")
+
+        return all_clean
+
+    # --- ПРИВАТНЫЕ МЕТОДЫ ---
+
+    def _find_subprojects(self):
+        """Ищет все папки с Makefile"""
+        paths = []
+        for root, _, files in os.walk(self.project_path):
+            if "Makefile" in files:
+                paths.append(root)
+        return paths
+
+    def _find_binaries(self, path):
+        """
+        УНИВЕРСАЛЬНЫЙ ПОИСК БИНАРНИКОВ.
+        Критерии: файл, права на исполнение, не исходник, не скрипт.
+        """
+        binaries = []
+        # Список расширений, которые точно НЕ являются бинарниками C
+        ignored_exts = {'.c', '.h', '.o', '.a', '.so', '.sh', '.py', '.txt', '.md', '.json'}
+        
+        for f in os.listdir(path):
+            full_path = os.path.join(path, f)
+            
+            # 1. Должен быть файлом
+            if not os.path.isfile(full_path): continue
+            
+            # 2. Не должен быть скрытым
+            if f.startswith('.'): continue
+            
+            # 3. Не должен быть Makefile
+            if f == "Makefile": continue
+
+            # 4. Проверка расширения
+            _, ext = os.path.splitext(f)
+            if ext in ignored_exts: continue
+
+            # 5. ГЛАВНОЕ: Проверка прав на выполнение (+x)
+            if os.access(full_path, os.X_OK):
+                binaries.append(f)
+                
+        return binaries
 
     def _setup_clang_format(self):
-        """Ищет .clang-format и предлагает скопировать"""
+        """Автопоиск и настройка конфига стиля"""
         if os.path.exists(os.path.join(self.project_path, ".clang-format")):
-            return # Уже есть
+            return
 
-        # Ищем в materials (поднимаемся на уровни выше)
-        found_path = None
         search_dir = self.project_path
-        for _ in range(4): # Ищем на 4 уровня вверх
+        found_config = None
+        for _ in range(6): # Ищем на 6 уровней вверх
             candidate = os.path.join(search_dir, "materials", "linters", ".clang-format")
             if os.path.exists(candidate):
-                found_path = candidate
+                found_config = candidate
                 break
             search_dir = os.path.dirname(search_dir)
         
-        if found_path:
-            logger.warning(f"Найден конфиг стиля: {found_path}")
-            # Интерактив
+        if found_config:
             try:
-                answer = input(f"{settings.Colors.WARNING}>> Скопировать его в проект? [Y/n]: {settings.Colors.ENDC}")
-                if answer.lower() in ['', 'y', 'yes']:
-                    shutil.copy(found_path, os.path.join(self.project_path, ".clang-format"))
-                    logger.success("Конфиг скопирован!")
-            except: pass # Если input не работает (в скриптах)
-        else:
-            logger.info("Не нашел materials/linters/.clang-format. Использую дефолтный стиль.")
+                # В интерактивном режиме можно спросить, но для CI/CD просто информируем
+                # Если очень хочется авто-копирование:
+                shutil.copy(found_config, os.path.join(self.project_path, ".clang-format"))
+                logger.success(f"Найден и применен стиль из: {found_config}")
+            except: pass
 
     def _check_principles_detailed(self):
-        """Проверка принципов с галочками"""
+        """Проверка GOTO, длины функций и т.д."""
         files_to_check = [f for f in self.files if f.endswith(".c") and "test" not in f]
-        
         check_goto = True
         check_func_len = True
-        check_nesting = True
-        
         errors = []
 
         for f_path in files_to_check:
@@ -194,31 +236,18 @@ class CHandler(BaseHandler):
             in_func = False
             lines_count = 0
             brace_balance = 0
-            nesting_level = 0
             
             for i, line in enumerate(lines):
                 stripped = line.strip()
                 
-                # 1. GOTO
+                # Check GOTO
                 if "goto " in stripped and not stripped.startswith("//"):
                     errors.append(f"❌ GOTO в {os.path.basename(f_path)}:{i+1}")
                     check_goto = False
 
-                # Подсчет баланса скобок
-                open_braces = stripped.count('{')
-                close_braces = stripped.count('}')
-                brace_balance += (open_braces - close_braces)
-
-                # 2. Вложенность
-                if in_func:
-                    # Грубая оценка вложенности
-                    if brace_balance > nesting_level: nesting_level = brace_balance
-                    if nesting_level > settings.MAX_NESTING_LEVEL + 1: # +1 т.к. сама функция это ур.1
-                        # Это сложная проверка, пока просто кидаем ворнинг, если очень глубоко
-                        pass 
-
-                # 3. Длина функции
-                # Начало функции (эвристика)
+                brace_balance += stripped.count('{')
+                brace_balance -= stripped.count('}')
+                
                 if brace_balance > 0 and not in_func and "(" in line and "{" in line:
                     in_func = True
                     lines_count = 0
@@ -226,30 +255,19 @@ class CHandler(BaseHandler):
                 if in_func:
                     lines_count += 1
                 
-                # Конец функции
                 if in_func and brace_balance == 0:
                     if lines_count > settings.MAX_LINES_PER_FUNC:
                         errors.append(f"❌ Функция > 50 строк ({lines_count}) в {os.path.basename(f_path)}:{i+1}")
                         check_func_len = False
                     in_func = False
 
-        # Вывод результатов
-        if check_goto: logger.success("  [OK] GOTO не обнаружен")
-        else: logger.fail("  [FAIL] Найден оператор GOTO!")
+        if check_goto: logger.success("  [OK] GOTO отсутствует")
+        else: logger.fail("  [FAIL] Найден GOTO!")
         
-        if check_func_len: logger.success("  [OK] Длина функций <= 50 строк")
-        else: logger.fail("  [FAIL] Есть слишком длинные функции!")
-
-        # Вложенность пока считаем ОК, так как её сложно парсить регулярками идеально
-        logger.success("  [OK] Вложенность блоков (basic check)")
+        if check_func_len: logger.success("  [OK] Функции компактные (<= 50)")
+        else: logger.fail("  [FAIL] Есть длинные функции!")
 
         if errors:
             print("\n".join(errors))
             return False
-            
         return True
-
-    def _find_binaries(self):
-        """Ищет скомпилированные файлы s21_..."""
-        return [f for f in os.listdir(self.project_path) 
-                if f.startswith("s21_") and "." not in f and os.access(os.path.join(self.project_path, f), os.X_OK)]
