@@ -1,7 +1,8 @@
 import os
 import subprocess
 import shutil
-import time  
+import time
+import re
 from handlers.base_handler import BaseHandler
 from core.logger import logger
 from config import settings
@@ -141,12 +142,11 @@ class CHandler(BaseHandler):
         time.sleep(1.0)
         logger.header("ЭТАП 4: ПРОВЕРКА ПАМЯТИ (VALGRIND)")
         
-        # Используем тот же глобальный поиск
         binaries = self._find_all_binaries_recursive()
         
         if not binaries:
             logger.warning("Бинарники не найдены. Valgrind пропущен.")
-            return True # Не фейлим, просто пропускаем
+            return True 
 
         all_clean = True
         for bin_full_path in binaries:
@@ -154,13 +154,21 @@ class CHandler(BaseHandler):
             print(f"\n   🧠 Valgrind check: {bin_name}")
             time.sleep(0.5)
             
-            cmd = ["valgrind", "--tool=memcheck", "--leak-check=full", "--error-exitcode=1", bin_full_path]
-            cmd.append("Makefile") # Фиктивный аргумент
+            cmd = ["valgrind", "--tool=memcheck", "--leak-check=full", bin_full_path]
+            
+            # Передаем Makefile как аргумент, чтобы прога не висела
+            cmd.append("Makefile") 
 
             res = subprocess.run(cmd, capture_output=True, text=True)
             
-            if res.returncode != 0:
-                logger.fail(f"УТЕЧКИ ПАМЯТИ В {bin_name}!")
+            errors_count = 0
+            match = re.search(r"ERROR SUMMARY: (\d+) errors", res.stderr)
+            if match:
+                errors_count = int(match.group(1))
+            
+            if errors_count > 0:
+                logger.fail(f"УТЕЧКИ ПАМЯТИ В {bin_name} ({errors_count} ошибок)!")
+                
                 printed_err = False
                 for line in res.stderr.split('\n'):
                      if "definitely lost:" in line or "indirectly lost:" in line or "ERROR SUMMARY:" in line:
