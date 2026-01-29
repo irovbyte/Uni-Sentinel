@@ -1,76 +1,71 @@
+# main.py
 import sys
 import os
+import subprocess
+from config import settings
+from core.logger import logger
 
-# Добавляем путь для модулей
+# Добавляем текущую директорию в путь, чтобы импорты работали
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from core.logger import logger
-from core.scanner import Scanner
-from core.style_checker import StyleChecker
-from core.builder import Builder
-from core.functional_tests import FunctionalTester
-from core.memory_checker import MemoryChecker
+def self_update():
+    """Функция самообновления через Git"""
+    logger.header("ЗАПУСК ОБНОВЛЕНИЯ UNI-SENTINEL")
+    
+    # Путь к папке, где лежит скрипт
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    try:
+        # Проверяем, это git репозиторий?
+        if not os.path.exists(os.path.join(root_dir, ".git")):
+            logger.fail("Это не Git-репозиторий. Обновление невозможно.")
+            return
+
+        logger.info("Скачиваем изменения с GitHub...")
+        res = subprocess.run(["git", "pull"], cwd=root_dir, capture_output=True, text=True)
+        
+        if res.returncode == 0:
+            if "Already up to date" in res.stdout:
+                logger.success("У вас уже установлена последняя версия!")
+            else:
+                logger.success("Обновление завершено успешно! Перезапустите команду.")
+                print(res.stdout)
+        else:
+            logger.fail("Ошибка при обновлении:")
+            print(res.stderr)
+            
+    except Exception as e:
+        logger.fail(f"Критическая ошибка обновления: {e}")
+
+def run_scan():
+    """Заглушка для запуска сканирования (допишем позже)"""
+    logger.header(f"ЗАПУСК {settings.APP_NAME} v{settings.VERSION}")
+    logger.info("Сканирование текущей директории...")
+    # Тут будет вызов Scanner().scan()
+    print("🚧 (Сканер будет подключен на следующем этапе) 🚧")
+
+def print_help():
+    print(f"""
+{settings.Colors.BOLD}{settings.APP_NAME} v{settings.VERSION}{settings.Colors.ENDC}
+Использование:
+    uni-sentinel         -> Запустить проверку в текущей папке
+    uni-sentinel update  -> Обновить утилиту до последней версии
+    uni-sentinel help    -> Показать это сообщение
+    """)
 
 def main():
-    logger.header("🚀 S21 ULTRA LINTER: SYSTEM START")
-    
-    # Ищем корень проекта (на уровень выше от папки линтера)
-    project_root = ".." 
-    
-    # --- ЭТАП 0: ПОДГОТОВКА ---
-    scanner = Scanner(project_root)
-    
-    # 1. Проверка ветки Git (develop)
-    scanner.check_git_branch()
-    
-    # 2. Копирование .clang-format
-    scanner.setup_linters()
-    
-    # 3. Поиск проектов
-    projects = scanner.scan()
-    
-    if not projects:
-        logger.fail("Проекты (Makefile + .c) не найдены. Работа завершена.")
-        return
-
-    logger.info(f"Найдено проектов в очереди: {len(projects)}")
-
-    # Инициализация модулей
-    style = StyleChecker()
-    builder = Builder()
-    tester = FunctionalTester()
-    memory = MemoryChecker()
-
-    # --- ЦИКЛ ПРОВЕРКИ ---
-    for proj in projects:
-        print("\n" + "-"*60)
-        logger.info(f"🔥 НАЧАЛО ПРОВЕРКИ ПРОЕКТА: {proj['name']} ({proj['type']})")
-        
-        # Шаг 1: Стиль и Принципы (50 строк, goto, вложенность)
-        if not style.check_project(proj):
-            logger.fail("ПРОВАЛ: Стиль кода или структурные принципы нарушены.")
-            continue 
-
-        # Шаг 2: Сборка (Make)
-        if not builder.build_project(proj):
-            logger.fail("ПРОВАЛ: Проект не собирается или есть Warnings.")
-            continue
-
-        # Шаг 3: Тесты (Сравнение с bash или make test)
-        if not tester.run_tests(proj):
-            logger.warning("ПРОВАЛ: Функциональные тесты не прошли.")
-        
-        # Шаг 4: Память (Valgrind)
-        if not memory.check_memory(proj):
-            logger.warning("ПРОВАЛ: Найдены утечки памяти (Valgrind)!")
-
-        # Шаг 5: Доп. проверка (AddressSanitizer)
-        # Запускаем только если это программа, а не либа (для простоты)
-        if proj['type'] == "CLI":
-            builder.run_sanitizer_check(proj)
-            
-    # --- ИТОГИ ---
-    logger.print_summary()
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        if command == "update":
+            self_update()
+        elif command == "help":
+            print_help()
+        else:
+            logger.fail(f"Неизвестная команда: {command}")
+            print_help()
+    else:
+        # Если аргументов нет — запускаем сканер
+        run_scan()
 
 if __name__ == "__main__":
     main()

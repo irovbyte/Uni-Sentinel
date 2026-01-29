@@ -1,11 +1,10 @@
 #!/bin/bash
 
-# Название проекта
-APP_NAME="C-Sentinel"
-INSTALL_DIR=".c_sentinel"
+# Настройки
+APP_NAME="Uni-Sentinel"
+INSTALL_DIR="$HOME/.uni-sentinel"
 
-# ССЫЛКУ НИЖЕ ЗАМЕНИШЬ НА СВОЙ НОВЫЙ РЕПОЗИТОРИЙ
-REPO_URL="https://github.com/YOUR_USERNAME/C-Sentinel.git"
+REPO_URL="https://github.com/irovbyte/Uni-Sentinel.git"
 
 # Цвета
 GREEN='\033[0;32m'
@@ -13,45 +12,61 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=========================================${NC}"
-echo -e "${BLUE}    🛡️  ${APP_NAME} INSTALLER  🛡️    ${NC}"
-echo -e "${BLUE}=========================================${NC}"
+echo -e "${BLUE}======================================${NC}"
+echo -e "${BLUE}   🚀 УСТАНОВКА ${APP_NAME} 🚀      ${NC}"
+echo -e "${BLUE}======================================${NC}"
 
-# Проверка Python
+# 1. Проверка зависимостей
 if ! command -v python3 &> /dev/null; then
     echo -e "${RED}[ERROR] Python3 не установлен!${NC}"
     exit 1
 fi
 
-# Установка
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}[ERROR] Git не установлен!${NC}"
+    exit 1
+fi
+
+# 2. Клонирование репозитория
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${GREEN}🔄 Обновление ${APP_NAME}...${NC}"
-    cd "$INSTALL_DIR" && git pull && cd ..
+    echo -e "${BLUE}🔄 Папка существует. Обновляем репозиторий...${NC}"
+    cd "$INSTALL_DIR" && git pull && cd - > /dev/null
 else
-    echo -e "${GREEN}⬇️ Скачивание ${APP_NAME}...${NC}"
+    echo -e "${GREEN}⬇️ Скачиваем в $INSTALL_DIR...${NC}"
     git clone -q "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# Скрываем папку от Git проекта, в котором мы находимся
-if [ -f ".gitignore" ]; then
-    if ! grep -q "$INSTALL_DIR" ".gitignore"; then
-        echo "$INSTALL_DIR" >> .gitignore
-        echo -e "${GREEN}✅ Папка $INSTALL_DIR добавлена в .gitignore${NC}"
+# 3. Настройка Shell (Alias)
+SHELL_CONFIG=""
+if [ -n "$ZSH_VERSION" ]; then
+    SHELL_CONFIG="$HOME/.zshrc"
+elif [ -n "$BASH_VERSION" ]; then
+    SHELL_CONFIG="$HOME/.bashrc"
+else
+    # Пробуем угадать по файлам
+    if [ -f "$HOME/.zshrc" ]; then
+        SHELL_CONFIG="$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+        SHELL_CONFIG="$HOME/.bashrc"
+    fi
+fi
+
+if [ -n "$SHELL_CONFIG" ]; then
+    # Проверяем, есть ли уже алиас
+    if ! grep -q "alias uni-sentinel=" "$SHELL_CONFIG"; then
+        echo "" >> "$SHELL_CONFIG"
+        echo "# Alias for Uni-Sentinel" >> "$SHELL_CONFIG"
+        echo "alias uni-sentinel='python3 $INSTALL_DIR/main.py'" >> "$SHELL_CONFIG"
+        echo -e "${GREEN}✅ Алиас добавлен в $SHELL_CONFIG${NC}"
+        echo -e "${BLUE}⚠️  Пожалуйста, перезапустите терминал или выполните: source $SHELL_CONFIG${NC}"
+    else
+        echo -e "${GREEN}✅ Алиас уже настроен.${NC}"
     fi
 else
-    echo "$INSTALL_DIR" > .gitignore
+    echo -e "${RED}[WARN] Не удалось определить конфиг шелла (.bashrc/.zshrc).${NC}"
+    echo -e "Добавьте вручную: alias uni-sentinel='python3 $INSTALL_DIR/main.py'"
 fi
 
-# Запуск
-echo ""
-echo -e "${BLUE}Установка завершена!${NC}"
-read -p "Запустить проверку прямо сейчас? [Y/n] " response
-response=${response:-Y}
-
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    echo -e "\n${GREEN}🚀 Запускаем Стража...${NC}\n"
-    python3 "$INSTALL_DIR/main.py"
-else
-    echo -e "\n${BLUE}Чтобы запустить позже, используй:${NC}"
-    echo -e "python3 $INSTALL_DIR/main.py"
-fi
+echo -e "\n${GREEN}Установка завершена!${NC}"
+echo -e "Теперь вы можете писать '${BLUE}uni-sentinel${NC}' в любой папке."
+echo -e "Для обновления: '${BLUE}uni-sentinel update${NC}'"

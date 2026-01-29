@@ -1,19 +1,21 @@
-# --- ПРАВИЛА SCHOOL 21 ---
+# config/settings.py
 
-# Структурное программирование
+VERSION = "1.0.0"
+APP_NAME = "Uni-Sentinel"
+REPO_URL = "https://github.com/irovbyte/Uni-Sentinel"
+
+
 MAX_LINES_PER_FUNC = 50
 MAX_NESTING_LEVEL = 4
-MAX_FUNCS_IN_FILE = 5  # Обычно 5 функций на файл
+REQUIRED_FLAGS = ["-Wall", "-Werror", "-Wextra"]
+FORBIDDEN_KEYWORDS = ["goto"]
 
-# Запрещенные слова
-FORBIDDEN_KEYWORDS = [
-    "goto",      # Принцип Дейкстры №1
-    "printf",    # Часто запрещен в финальных проектах (нужен write), но для debug можно оставить
-]
 
-# Компиляция
-REQUIRED_FLAGS = ["-Wall", "-Werror", "-Wextra", "-std=c11"]
-REQUIRED_TARGETS = ["all", "clean", "fclean", "re"]
-
-# Тесты
-MEMORY_CHECK_TOOL = "valgrind" # или "leaks" для Mac
+class Colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'

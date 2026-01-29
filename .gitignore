@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# C build files
+*.o
+*.out
+*.a
+*.so
+*.dSYM/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
