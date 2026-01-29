@@ -1,22 +1,19 @@
-# main.py
 import sys
 import os
 import subprocess
 from config import settings
 from core.logger import logger
+from core.scanner import Scanner  # <--- ВАЖНО: Добавил импорт
 
-# Добавляем текущую директорию в путь, чтобы импорты работали
+# Добавляем текущую директорию в путь
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def self_update():
     """Функция самообновления через Git"""
     logger.header("ЗАПУСК ОБНОВЛЕНИЯ UNI-SENTINEL")
-    
-    # Путь к папке, где лежит скрипт
     root_dir = os.path.dirname(os.path.abspath(__file__))
     
     try:
-        # Проверяем, это git репозиторий?
         if not os.path.exists(os.path.join(root_dir, ".git")):
             logger.fail("Это не Git-репозиторий. Обновление невозможно.")
             return
@@ -33,16 +30,39 @@ def self_update():
         else:
             logger.fail("Ошибка при обновлении:")
             print(res.stderr)
-            
     except Exception as e:
         logger.fail(f"Критическая ошибка обновления: {e}")
 
 def run_scan():
-    """Заглушка для запуска сканирования (допишем позже)"""
+    """Запуск сканирования текущей директории"""
     logger.header(f"ЗАПУСК {settings.APP_NAME} v{settings.VERSION}")
-    logger.info("Сканирование текущей директории...")
-    # Тут будет вызов Scanner().scan()
-    print("🚧 (Сканер будет подключен на следующем этапе) 🚧")
+    
+    # 1. Сканируем папку, откуда запущена команда (os.getcwd())
+    current_dir = os.getcwd()
+    scanner = Scanner(current_dir)
+    handler = scanner.detect_handler()
+    
+    if not handler:
+        logger.fail("Не удалось определить тип проекта (нет файлов .c или .py).")
+        return
+
+    # 2. Запускаем протокол проверки
+    logger.info(f"Запуск проверки в: {current_dir}")
+    
+    success = True
+    
+    if not handler.check_style(): success = False
+    if not handler.build(): success = False
+    if not handler.run_tests(): success = False
+    if not handler.check_memory(): success = False
+    
+    # 3. Итог
+    print("\n" + "="*40)
+    if success:
+        logger.success("ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ! ТЫ ГОТОВ К ЗАЩИТЕ! 😎")
+    else:
+        logger.fail("ЕСТЬ ОШИБКИ. ИСПРАВЬ ИХ ПЕРЕД СДАЧЕЙ.")
+    print("="*40 + "\n")
 
 def print_help():
     print(f"""
@@ -64,7 +84,6 @@ def main():
             logger.fail(f"Неизвестная команда: {command}")
             print_help()
     else:
-        # Если аргументов нет — запускаем сканер
         run_scan()
 
 if __name__ == "__main__":

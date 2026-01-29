@@ -1,5 +1,3 @@
-# config/settings.py
-
 VERSION = "1.0.0"
 APP_NAME = "Uni-Sentinel"
 REPO_URL = "https://github.com/irovbyte/Uni-Sentinel"
