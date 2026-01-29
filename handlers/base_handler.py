@@ -18,3 +18,7 @@ class BaseHandler:
     def check_memory(self):
         """Проверка утечек памяти"""
         return True
+    
+    def cleanup(self):
+        """Очистка временных файлов (make clean)"""
+        return True

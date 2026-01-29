@@ -57,7 +57,7 @@ class CHandler(BaseHandler):
             folder_name = os.path.basename(path)
             print(f"\n   📂 Сборка в папке: {settings.Colors.BOLD}{folder_name}{settings.Colors.ENDC}")
             
-            # Clean
+            # Clean перед сборкой (гарантия чистоты)
             subprocess.run(["make", "clean"], cwd=path, capture_output=True)
 
             # Build (all или default)
@@ -157,6 +157,20 @@ class CHandler(BaseHandler):
 
         return all_clean
 
+    def cleanup(self):
+        logger.header("ФИНАЛ: ОЧИСТКА (MAKE CLEAN)")
+        if not self.subprojects: return True
+
+        for path in self.subprojects:
+            folder_name = os.path.basename(path)
+            # Проверяем, есть ли Makefile перед запуском
+            if os.path.exists(os.path.join(path, "Makefile")):
+                subprocess.run(["make", "clean"], cwd=path, capture_output=True)
+                logger.info(f"Очищен мусор в {folder_name}")
+        
+        logger.success("Рабочая директория чиста.")
+        return True
+
     # --- ПРИВАТНЫЕ МЕТОДЫ ---
 
     def _find_subprojects(self):
@@ -173,39 +187,29 @@ class CHandler(BaseHandler):
         Критерии: файл, права на исполнение, не исходник, не скрипт.
         """
         binaries = []
-        # Список расширений, которые точно НЕ являются бинарниками C
         ignored_exts = {'.c', '.h', '.o', '.a', '.so', '.sh', '.py', '.txt', '.md', '.json'}
         
         for f in os.listdir(path):
             full_path = os.path.join(path, f)
-            
-            # 1. Должен быть файлом
             if not os.path.isfile(full_path): continue
-            
-            # 2. Не должен быть скрытым
             if f.startswith('.'): continue
-            
-            # 3. Не должен быть Makefile
             if f == "Makefile": continue
 
-            # 4. Проверка расширения
             _, ext = os.path.splitext(f)
             if ext in ignored_exts: continue
 
-            # 5. ГЛАВНОЕ: Проверка прав на выполнение (+x)
             if os.access(full_path, os.X_OK):
                 binaries.append(f)
                 
         return binaries
 
     def _setup_clang_format(self):
-        """Автопоиск и настройка конфига стиля"""
         if os.path.exists(os.path.join(self.project_path, ".clang-format")):
             return
 
         search_dir = self.project_path
         found_config = None
-        for _ in range(6): # Ищем на 6 уровней вверх
+        for _ in range(6): 
             candidate = os.path.join(search_dir, "materials", "linters", ".clang-format")
             if os.path.exists(candidate):
                 found_config = candidate
@@ -214,14 +218,11 @@ class CHandler(BaseHandler):
         
         if found_config:
             try:
-                # В интерактивном режиме можно спросить, но для CI/CD просто информируем
-                # Если очень хочется авто-копирование:
                 shutil.copy(found_config, os.path.join(self.project_path, ".clang-format"))
                 logger.success(f"Найден и применен стиль из: {found_config}")
             except: pass
 
     def _check_principles_detailed(self):
-        """Проверка GOTO, длины функций и т.д."""
         files_to_check = [f for f in self.files if f.endswith(".c") and "test" not in f]
         check_goto = True
         check_func_len = True
@@ -239,8 +240,6 @@ class CHandler(BaseHandler):
             
             for i, line in enumerate(lines):
                 stripped = line.strip()
-                
-                # Check GOTO
                 if "goto " in stripped and not stripped.startswith("//"):
                     errors.append(f"❌ GOTO в {os.path.basename(f_path)}:{i+1}")
                     check_goto = False
