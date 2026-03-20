@@ -7,9 +7,41 @@ if (args.Length > 0)
         Console.WriteLine($"\n{Settings.Colors.Bold}{Settings.AppName} v{Settings.Version}{Settings.Colors.Reset}");
         Console.WriteLine("Использование:");
         Console.WriteLine("  uni-sentinel           -> Запустить проверку проекта");
-        Console.WriteLine("  uni-sentinel update    -> Скачать обновления через Git");
-        Console.WriteLine("  uni-sentinel ac on     -> Включить режим Анти-Чит (Запрет printf и др.)");
+        Console.WriteLine("  uni-sentinel update    -> Обновить утилиту из GitHub");
+        Console.WriteLine("  uni-sentinel uninstall -> Полностью удалить Uni-Sentinel из системы");
+        Console.WriteLine("  uni-sentinel ac on     -> Включить режим Анти-Чит");
         Console.WriteLine("  uni-sentinel ac off    -> Выключить режим Анти-Чит");
+        return;
+    }
+
+    if (command == "uninstall")
+    {
+        Logger.Header("УДАЛЕНИЕ UNI-SENTINEL");
+        Console.Write($"{Settings.Colors.Warning}Вы уверены, что хотите полностью удалить программу и ваш прогресс (XP)? [y/N]: {Settings.Colors.Reset}");
+
+        if (Console.ReadLine()?.Trim().ToLower() == "y")
+        {
+            try
+            {
+                Process.Start("sudo", "rm /usr/local/bin/uni-sentinel")?.WaitForExit();
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string scoreFile = Path.Combine(home, ".uni-sentinel-score");
+                string configFile = Path.Combine(home, ".uni-sentinel-config");
+
+                if (File.Exists(scoreFile)) File.Delete(scoreFile);
+                if (File.Exists(configFile)) File.Delete(configFile);
+
+                Logger.Success("Uni-Sentinel успешно удален. Прощай, Shadow Monarch...");
+            }
+            catch (Exception ex)
+            {
+                Logger.Fail($"Ошибка при удалении: {ex.Message}");
+            }
+        }
+        else
+        {
+            Logger.Info("Удаление отменено.");
+        }
         return;
     }
 

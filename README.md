@@ -18,7 +18,7 @@
 Вставьте эту строку в терминал. Скрипт скачает исходники, скомпилирует бинарник и установит его в вашу систему глобально.
 
 ```bash
-bash <(curl -s [https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh](https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh))
+bash <(curl -sL https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh)
 ```
 *(Никаких перезагрузок оболочки или возни с алиасами. Инструмент сразу готов к бою).*
 
