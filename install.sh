@@ -14,7 +14,7 @@ YELLOW='\033[0;33m'
 NC='\033[0m'
 
 echo -e "${PURPLE}======================================${NC}"
-echo -e "${PURPLE}  🚀 УСТАНОВКА ${APP_NAME} (Native AOT) 🚀  ${NC}"
+echo -e "${PURPLE}  🚀 ULTRA INSTALLER: ${APP_NAME} 🚀  ${NC}"
 echo -e "${PURPLE}======================================${NC}"
 
 PM=""
@@ -31,12 +31,10 @@ if ! command -v clang &> /dev/null && ! command -v gcc &> /dev/null; then MISSIN
 if [ "$DOTNET_VER" != "10" ]; then MISSING_DEPS+="dotnet-sdk-10.0 "; fi
 
 if [ -n "$MISSING_DEPS" ]; then
-    echo -e "${YELLOW}[WARN] Требуются компоненты: ${RED}$MISSING_DEPS${NC}"
-    
+    echo -e "${YELLOW}[!] Необходимы зависимости: ${RED}$MISSING_DEPS${NC}"
     if [ -n "$PM" ]; then
-        read -p "Установить всё автоматически через $PM? [y/N]: " choice
+        read -p "Установить всё автоматически? [y/N]: " choice
         if [[ "$choice" == [Yy]* ]]; then
-            echo -e "${BLUE}⚙️ Начинаю установку зависимостей...${NC}"
             if [ "$PM" == "apt-get" ]; then
                 sudo apt-get update && sudo apt-get install -y git clang build-essential dotnet-sdk-10.0
             elif [ "$PM" == "pacman" ]; then
@@ -45,39 +43,44 @@ if [ -n "$MISSING_DEPS" ]; then
                 sudo dnf install -y git clang dotnet-sdk-10.0
             fi
         else
-            echo -e "${RED}[ERR] Без необходимых компонентов установка невозможна. Отмена.${NC}"
-            exit 1
+            echo -e "${RED}[ERR] Отмена установки.${NC}"; exit 1
         fi
-    else
-        echo -e "${RED}[ERR] Менеджер пакетов не найден. Установите вручную: $MISSING_DEPS${NC}"
-        exit 1
     fi
 fi
 
-echo -e "\n${BLUE}⬇️ Скачиваем исходники из GitHub...${NC}"
+echo -e "\n${BLUE}⬇️ Клонирование репозитория...${NC}"
 rm -rf "$TMP_DIR"
-git clone -q "$REPO_URL" "$TMP_DIR" || { echo -e "${RED}Ошибка клонирования${NC}"; exit 1; }
+git clone -q "$REPO_URL" "$TMP_DIR" || { echo -e "${RED}[ERR] Ошибка сети${NC}"; exit 1; }
 cd "$TMP_DIR"
 
-echo -e "${BLUE}⚙️ Компиляция в Native AOT (net10.0)...${NC}"
-dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishAot=true -f net10.0 -v q
+echo -e "${BLUE}⚙️ Компиляция Native AOT (net10.0)...${NC}"
+dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishAot=true -p:InvariantGlobalization=true -f net10.0 -v q
 
 if [ $? -ne 0 ]; then
-    echo -e "${RED}[ERROR] Ошибка компиляции!${NC}"
-    exit 1
+    echo -e "${RED}[ERR] Сборка провалилась!${NC}"; exit 1
 fi
 
 BINARY_PATH="bin/Release/net10.0/linux-x64/publish/UniSentinel"
-
-echo -e "${BLUE}🛡️ Копирую в $INSTALL_DIR...${NC}"
+echo -e "${BLUE}🛡️ Регистрация в системе...${NC}"
 sudo cp "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
-sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
+sudo chmod 755 "$INSTALL_DIR/$BINARY_NAME"
+sudo chown root:root "$INSTALL_DIR/$BINARY_NAME"
 
-echo -e "${BLUE}🧹 Очистка временных файлов...${NC}"
+echo -e "${BLUE}🔗 Настройка путей (PATH)...${NC}"
+for CONFIG in "$HOME/.zshrc" "$HOME/.bashrc"; do
+    if [ -f "$CONFIG" ]; then
+        if ! grep -q "$INSTALL_DIR" "$CONFIG"; then
+            echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$CONFIG"
+            echo -e "${GREEN}  - Путь добавлен в $CONFIG${NC}"
+        fi
+    fi
+done
+
 cd ~
 rm -rf "$TMP_DIR"
 
 echo -e "\n${GREEN}======================================${NC}"
-echo -e "${GREEN}✅ Uni-Sentinel готов к работе!${NC}"
-echo -e "Используй команду: ${PURPLE}$BINARY_NAME${NC}"
+echo -e "${GREEN}✅ УСТАНОВКА ЗАВЕРШЕНА УСПЕШНО!${NC}"
+echo -e "${YELLOW}ВАЖНО: Перезапусти терминал или введи: source ~/.zshrc${NC}"
+echo -e "Попробуй команду: ${PURPLE}$BINARY_NAME help${NC}"
 echo -e "${GREEN}======================================${NC}"
