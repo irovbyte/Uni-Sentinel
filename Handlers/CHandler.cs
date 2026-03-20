@@ -1,10 +1,14 @@
 #pragma warning disable CA1416
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+
 namespace UniSentinel.Handlers;
 
 public class CHandler : BaseHandler
 {
     private HashSet<string> _makeDirs = new();
     public CHandler(string p, List<string> f) : base(p, f) { }
+    
     private async Task<(int Code, string Out, string Err)> RunAsync(string cmd, string args, string? customDir = null)
     {
         try
@@ -29,6 +33,7 @@ public class CHandler : BaseHandler
             return (127, "", "");
         }
     }
+
     public override async Task<(bool Ok, int Points)> CheckGitAsync()
     {
         Logger.Header("ЭТАП 0: ИНСПЕКЦИЯ GIT");
@@ -47,42 +52,62 @@ public class CHandler : BaseHandler
         Logger.Success($"Активная ветка: {branch}. Всё по правилам.");
         return (true, 0);
     }
+
     public override async Task<(bool Ok, int Points)> CheckStyleAsync()
     {
         Logger.Header("ЭТАП 1: СТИЛЬ (CLANG)");
+        
+        // 1. Создаем или копируем конфиг
         string? existingClang = Files.FirstOrDefault(f => Path.GetFileName(f) == ".clang-format");
         var cDirs = Files.Where(x => x.EndsWith(".c") || x.EndsWith(".h"))
                          .Select(Path.GetDirectoryName).Distinct().Where(d => d != null);
+        
         foreach (var dir in cDirs)
         {
             string targetPath = Path.Combine(dir!, ".clang-format");
-            if (existingClang != null && existingClang != targetPath) File.Copy(existingClang, targetPath, true);
-            else if (existingClang == null && !File.Exists(targetPath)) await File.WriteAllTextAsync(targetPath, "BasedOnStyle: Google\n");
+            if (existingClang != null && existingClang != targetPath) 
+                File.Copy(existingClang, targetPath, true);
+            else if (existingClang == null && !File.Exists(targetPath)) 
+                await File.WriteAllTextAsync(targetPath, "BasedOnStyle: Google\n");
         }
+        
         if (existingClang == null) Logger.Info("Сгенерирован стандартный Google Style (.clang-format).");
+
+        var cFiles = Files.Where(x => x.EndsWith(".c") || x.EndsWith(".h")).ToList();
         var broken = new List<string>();
-        foreach (var f in Files.Where(x => x.EndsWith(".c") || x.EndsWith(".h")))
+
+        // 2. Проверяем файлы (без жесткого Werror, используем --dry-run для безопасной проверки)
+        foreach (var f in cFiles)
         {
-            if (f.Contains("test")) continue;
-            var r = await RunAsync("clang-format", $"-n --Werror {f}");
+            if (f.Contains("test")) continue; // Тесты часто имеют свой стиль
+            var r = await RunAsync("clang-format", $"--dry-run -Werror {f}");
             if (r.Code != 0) broken.Add(f);
         }
+
         if (!broken.Any())
         {
             Logger.Success("Стиль идеален!");
             return (true, 0);
         }
+
         Logger.Fail($"Нарушен стиль в {broken.Count} файлах.");
         Console.Write("Исправить автоматически (y) или пропустить (s)? [y/s]: ");
+        
         if (Console.ReadLine()?.ToLower() == "y")
         {
-            foreach (var f in broken) await RunAsync("clang-format", $"-i {f}");
-            Logger.Success("Стиль успешно исправлен.");
+            // 3. Жесткое исправление всех C/H файлов на месте (-i)
+            foreach (var f in cFiles)
+            {
+                if (!f.Contains("test")) await RunAsync("clang-format", $"-i -style=file {f}");
+            }
+            Logger.Success("Стиль успешно исправлен во всех файлах.");
             return (true, 0);
         }
+        
         Logger.Warning("Проверка стиля проигнорирована. Идем дальше.");
         return (true, 0);
     }
+
     public override async Task<(bool Ok, int Points)> BuildAsync()
     {
         Logger.Header("ЭТАП 2: УМНАЯ СБОРКА (MULTI-MAKE)");
@@ -99,10 +124,12 @@ public class CHandler : BaseHandler
             _makeDirs.Add(makeDir);
             Logger.Info($"Анализ Makefile в: {Path.GetRelativePath(ProjectPath, makeDir)}");
             string content = await File.ReadAllTextAsync(make);
+            
             var targets = Regex.Matches(content, @"^([a-zA-Z0-9_-]+):", RegexOptions.Multiline)
                                .Select(m => m.Groups[1].Value)
                                .Where(t => t != "clean" && t != "rebuild")
                                .Distinct().ToList();
+            
             var phonyMatch = Regex.Match(content, @"^\.PHONY:\s*(.+)$", RegexOptions.Multiline);
             if (phonyMatch.Success)
             {
@@ -112,19 +139,25 @@ public class CHandler : BaseHandler
                     if (pt != "clean" && pt != "rebuild" && !targets.Contains(pt)) targets.Add(pt);
                 }
             }
+            
             var queue = new List<string>();
             if (targets.Contains("all")) queue.Add("all");
             else if (targets.Any()) queue.Add(targets.First());
+            
             if (targets.Contains("test")) queue.Add("test");
             else if (targets.Contains("tests")) queue.Add("tests");
+            
             if (targets.Contains("gcov_report")) queue.Add("gcov_report");
+            
             Logger.Info($"Сформирована очередь выполнения: [{string.Join(" -> ", queue)}]");
+            
             foreach (var target in queue)
             {
                 Console.WriteLine($"   {Config.Settings.Colors.Gray}├─ Выполнение: make {target}...{Config.Settings.Colors.Reset}");
                 var sw = Stopwatch.StartNew();
                 var res = await RunAsync("make", target, makeDir);
                 sw.Stop();
+                
                 if (res.Code != 0)
                 {
                     Console.WriteLine($"   {Config.Settings.Colors.Fail}└─ [ERR] Ошибка при сборке '{target}'!{Config.Settings.Colors.Reset}");
@@ -141,6 +174,7 @@ public class CHandler : BaseHandler
         }
         return (allOk, 0);
     }
+
     public override async Task<(bool Ok, int Points)> CheckMemoryAsync()
     {
         Logger.Header("ЭТАП 3: ПАМЯТЬ (VALGRIND)");
@@ -153,17 +187,20 @@ public class CHandler : BaseHandler
                 try { return (File.GetUnixFileMode(f) & UnixFileMode.UserExecute) != 0; }
                 catch { return false; }
             }).ToList();
+            
         if (!binaries.Any())
         {
             Logger.Info("Бинарные файлы не найдены. Этап Valgrind проигнорирован.");
             return (true, 0);
         }
+        
         bool allClean = true;
         foreach (var bin in binaries)
         {
             Logger.Info($"Анализ: {Path.GetFileName(bin)}...");
             string binDir = Path.GetDirectoryName(bin)!;
             var res = await RunAsync("valgrind", $"--tool=memcheck --leak-check=full ./{Path.GetFileName(bin)}", binDir);
+            
             if (res.Err.Contains("ERROR SUMMARY: 0 errors"))
             {
                 Logger.Success($"Память абсолютно чиста ({Path.GetFileName(bin)}).");
@@ -178,6 +215,7 @@ public class CHandler : BaseHandler
         }
         return (allClean, 0);
     }
+
     public override async Task<(bool Ok, int Points)> CheckCpuAsync()
     {
         Logger.Header("ЭТАП 4: ПРОФИЛИРОВАНИЕ CPU");
@@ -188,11 +226,13 @@ public class CHandler : BaseHandler
                 if (Path.GetFileName(f).Contains(".")) return false;
                 try { return (File.GetUnixFileMode(f) & UnixFileMode.UserExecute) != 0; } catch { return false; }
             }).ToList();
+            
         if (!binaries.Any())
         {
             Logger.Info("Исполняемые файлы отсутствуют. Замер скорости проигнорирован.");
             return (true, 0);
         }
+        
         foreach (var bin in binaries)
         {
             string binDir = Path.GetDirectoryName(bin)!;
@@ -206,24 +246,34 @@ public class CHandler : BaseHandler
         }
         return (true, 0);
     }
+
     public override async Task<(bool Ok, int Points)> CheckAntiCheatAsync()
     {
         Logger.Header("ЭТАП 0.5: АНТИ-ЧИТ (СТРОГИЙ КОНТРОЛЬ)");
         var cFiles = Files.Where(x => x.EndsWith(".c")).ToList();
-        string[] banned = { "printf(", "strcpy(", "strcat(", "strlen(", "scanf(" };
+        
+        // Массив запрещенных функций без скобок
+        string[] banned = { "printf", "strcpy", "strcat", "strlen", "scanf" };
         bool allOk = true;
+        
         foreach (var f in cFiles)
         {
+            // Пропускаем unit-тесты, так как там разрешено использовать printf
+            if (f.Contains("test")) continue;
+
             var lines = await File.ReadAllLinesAsync(f);
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = lines[i];
-                if (line.TrimStart().StartsWith("//")) continue;
+                if (line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith("/*") || line.TrimStart().StartsWith("*")) continue;
+                
                 foreach (var ban in banned)
                 {
-                    if (line.Contains(ban))
+                    // Регулярное выражение: ищем точное слово, за которым (сразу или через пробел) идет открывающая скобка
+                    string pattern = $@"\b{ban}\s*\(";
+                    if (Regex.IsMatch(line, pattern))
                     {
-                        Logger.Fail($"[{Path.GetFileName(f)}:{i + 1}] Использование запрещенной функции: {ban})");
+                        Logger.Fail($"[{Path.GetFileName(f)}:{i + 1}] Использование запрещенной функции: {ban}()");
                         allOk = false;
                     }
                 }
@@ -232,6 +282,7 @@ public class CHandler : BaseHandler
         if (allOk) Logger.Success("Запрещенные вызовы не обнаружены. Код чист.");
         return (allOk, 0);
     }
+
     public override async Task<(bool Ok, int Points)> CheckStructureAsync()
     {
         Logger.Header("ЭТАП 5: СТРУКТУРНОЕ ПРОГРАММИРОВАНИЕ");
@@ -245,6 +296,7 @@ public class CHandler : BaseHandler
             int functionLines = 0;
             bool inFunction = false;
             bool depthErrorShown = false;
+            
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = lines[i];
@@ -253,12 +305,15 @@ public class CHandler : BaseHandler
                     Logger.Fail($"[{Path.GetFileName(f)}:{i + 1}] Обнаружен 'goto'!");
                     allOk = false;
                 }
+                
                 if (line.Contains("{"))
                 {
                     blockDepth++;
                     if (blockDepth == 1) { inFunction = true; functionLines = 0; }
                 }
+                
                 if (inFunction) functionLines++;
+                
                 if (line.Contains("}"))
                 {
                     blockDepth--;
@@ -272,6 +327,7 @@ public class CHandler : BaseHandler
                         inFunction = false;
                     }
                 }
+                
                 if (blockDepth > 4 && !depthErrorShown)
                 {
                     Logger.Fail($"[{Path.GetFileName(f)}:{i + 1}] Вложенность блоков > 4");
@@ -283,13 +339,16 @@ public class CHandler : BaseHandler
         if (allOk) Logger.Success("Структура кода соответствует стандартам Дейкстры (функции < 50 строк).");
         return (allOk, 0);
     }
+
     public override async Task<bool> StripCommentsAsync()
     {
         Logger.Header("ЭТАП 6: ОЧИСТКА КОДА ОТ КОММЕНТАРИЕВ");
         var cFiles = Files.Where(x => x.EndsWith(".c") || x.EndsWith(".h")).ToList();
         if (!cFiles.Any()) return true;
+        
         string pattern = @"(@(?:""[^""]*"")+|""(?:[^""\n\\]+|\\.)*""|'(?:[^'\n\\]+|\\.)*')|//.*|/\*[\s\S]*?\*/";
         var filesToClean = new Dictionary<string, string>();
+        
         foreach (var f in cFiles)
         {
             string text = await File.ReadAllTextAsync(f);
@@ -304,17 +363,20 @@ public class CHandler : BaseHandler
                 filesToClean[f] = cleanText;
             }
         }
+        
         if (!filesToClean.Any())
         {
             Logger.Info("Комментарии в коде отсутствуют. Этап пройден автоматически.");
             return true;
         }
+        
         Console.Write($" {Config.Settings.Colors.LycorisAccent}Найдено комментариев в {filesToClean.Count} файлах. Вырезать весь мусор перед сдачей? [y/N]: {Config.Settings.Colors.Reset}");
         if (Console.ReadLine()?.Trim().ToLower() != "y")
         {
             Logger.Info("Очистка комментариев проигнорирована.");
             return true;
         }
+        
         foreach (var kvp in filesToClean)
         {
             await File.WriteAllTextAsync(kvp.Key, kvp.Value);
@@ -322,6 +384,7 @@ public class CHandler : BaseHandler
         Logger.Success($"Комментарии успешно вырезаны из {filesToClean.Count} файлов.");
         return true;
     }
+
     public override async Task<bool> CleanupAsync()
     {
         Logger.Header("ФИНАЛ: ОЧИСТКА");
