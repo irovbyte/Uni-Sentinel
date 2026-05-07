@@ -19,7 +19,7 @@
 
 **Linux / WSL / macOS**
 ```bash
-bash <(curl -sL [https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh](https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh))
+bash <(curl -sL https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh)
 ```
 
 **Windows (PowerShell)**
