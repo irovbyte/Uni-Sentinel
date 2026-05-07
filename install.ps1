@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Invoke-WithRetry {
@@ -8,7 +8,8 @@ function Invoke-WithRetry {
         try {
             & $Task
             return $true
-        } catch {
+        }
+        catch {
             $attempt++
             Write-Host "[!] Ошибка сети/Таймаут. Попытка $attempt из $Retries..." -ForegroundColor DarkYellow
             Start-Sleep -Seconds $Delay
@@ -31,28 +32,31 @@ $choice = Read-Host "Выбери номер [1-3]"
 
 if ($choice -match '1|3') {
     Write-Host "`n[+] Проверка C/C++ окружения..." -ForegroundColor Cyan
-    
+
     if (!(Get-Command gcc -ErrorAction SilentlyContinue)) {
         Write-Host "Скачивание MinGW-w64..." -ForegroundColor Cyan
         Invoke-WithRetry { winget install --id GNU.MinGW-w64 -e --source winget --accept-package-agreements --accept-source-agreements }
-    } else { Write-Host "[OK] GCC найден. Пропуск." -ForegroundColor Green }
+    }
+    else { Write-Host "[OK] GCC найден. Пропуск." -ForegroundColor Green }
 
     if (!(Get-Command clang -ErrorAction SilentlyContinue)) {
         Write-Host "Скачивание LLVM..." -ForegroundColor Cyan
         Invoke-WithRetry { winget install --id LLVM.LLVM -e --source winget --accept-package-agreements --accept-source-agreements }
-    } else { Write-Host "[OK] Clang найден. Пропуск." -ForegroundColor Green }
-    
+    }
+    else { Write-Host "[OK] Clang найден. Пропуск." -ForegroundColor Green }
+
     Write-Host "[!] На Windows память (Valgrind) не чекается. Юзай WSL для тестов памяти!" -ForegroundColor DarkYellow
 }
 
 if ($choice -match '2|3') {
     Write-Host "`n[+] Проверка .NET 10 SDK..." -ForegroundColor Green
-    
+
     $dotnetVer = if (Get-Command dotnet -ErrorAction SilentlyContinue) { (dotnet --version) } else { "" }
     if ($dotnetVer -notmatch "^10\.") {
         Write-Host "Скачивание/Обновление .NET 10 SDK..." -ForegroundColor Green
         Invoke-WithRetry { winget install --id Microsoft.DotNet.SDK.10 -e --source winget --accept-package-agreements --accept-source-agreements }
-    } else { Write-Host "[OK] .NET 10 SDK ($dotnetVer) найден. Пропуск." -ForegroundColor Green }
+    }
+    else { Write-Host "[OK] .NET 10 SDK ($dotnetVer) найден. Пропуск." -ForegroundColor Green }
 }
 
 $destDir = "$HOME\.uni-sentinel\bin"

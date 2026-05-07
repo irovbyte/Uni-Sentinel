@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 set -e
 
 C_RESET='\033[0m'
@@ -28,7 +28,7 @@ if [[ "$STACK_CHOICE" == "1" || "$STACK_CHOICE" == "3" ]]; then
     DEPS+="clang build-essential valgrind lcov cppcheck "
 fi
 if [[ "$STACK_CHOICE" == "2" || "$STACK_CHOICE" == "3" ]]; then
-    if ! command -v dotnet &> /dev/null || [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then 
+    if ! command -v dotnet &> /dev/null || [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then
         DEPS+="dotnet-sdk-10.0 "
     fi
 fi
@@ -55,7 +55,7 @@ else
     mkdir -p ~/.local/bin
     curl -sL "$URL" -o ~/.local/bin/uni-sentinel
     chmod +x ~/.local/bin/uni-sentinel
-    
+
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc

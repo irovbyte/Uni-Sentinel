@@ -5,6 +5,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -13,28 +16,27 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            artifact_name: uni-sentinel-linux
+            rid: linux-x64
             asset_name: uni-sentinel-linux
           - os: windows-latest
-            artifact_name: uni-sentinel-win.exe
+            rid: win-x64
             asset_name: uni-sentinel-win.exe
 
     steps:
     - uses: actions/checkout@v4
-
     - name: Setup .NET 10
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
-                                                                       
+
     - name: Install Native AOT dependencies (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
     - name: Publish (Native AOT)
-      run: dotnet publish ./UniSentinel.csproj -c Release -r ${{ matrix.os == 'ubuntu-latest' && 'linux-x64' || 'win-x64' }} --self-contained true -o ./publish
+      run: dotnet publish ./UniSentinel.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o ./publish /p:PublishAot=true
 
-    - name: Rename Artifact
+    - name: Rename & Prepare
       shell: bash
       run: |
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -43,10 +45,10 @@ jobs:
           mv ./publish/UniSentinel ./${{ matrix.asset_name }}
         fi
 
-    - name: Upload Artifacts
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact_name }}
+        name: ${{ matrix.asset_name }}
         path: ${{ matrix.asset_name }}
 
   create_release:
@@ -55,14 +57,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download All Artifacts
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
 
-      - name: Create GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.run_number }}
-          name: Uni-Sentinel Build ${{ github.run_number }}
+          tag_name: v3.0.${{ github.run_number }}
+          name: Uni-Sentinel v3.0.${{ github.run_number }}
           files: |
             uni-sentinel-linux/uni-sentinel-linux
             uni-sentinel-win.exe/uni-sentinel-win.exe
