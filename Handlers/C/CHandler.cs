@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using UniSentinel.Core;
 namespace UniSentinel.Handlers.C;
-internal partial class CHandler(string projectPath, List<string> files) : BaseHandler(projectPath, files)
+internal sealed partial class CHandler(string projectPath, List<string> files) : BaseHandler(projectPath, files)
 {
     [GeneratedRegex(@"\b(printf|strcpy|strcat|strlen|scanf)\s*\(", RegexOptions.Compiled)]
     private static partial Regex BannedFunctionsRegex();

@@ -1,5 +1,5 @@
 namespace UniSentinel.Handlers.CSharp;
-internal class StyleManager(ProjectManager projectManager)
+internal sealed class StyleManager(ProjectManager projectManager)
 {
     private static async Task<T> RunWithLoadingAsync<T>(string message, Func<Task<T>> task)
     {

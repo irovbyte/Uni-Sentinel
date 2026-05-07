@@ -1,25 +1,23 @@
 ﻿#!/bin/bash
-APP_NAME="Uni-Sentinel"
-BINARY_NAME="uni-sentinel"
-INSTALL_DIR="/usr/local/bin"
-TMP_DIR="/tmp/uni-sentinel-installer"
+set -e
 
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-PURPLE='\033[0;35m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
+C_RESET='\033[0m'
+C_TITLE='\033[1;38;5;93m'
+C_MAIN='\033[38;5;159m'
+C_WARN='\033[38;5;222m'
+C_ERR='\033[38;5;167m'
+C_OK='\033[38;5;150m'
 
-echo -e "${PURPLE}======================================${NC}"
-echo -e "${PURPLE}  🚀 ULTRA INSTALLER: ${APP_NAME} 🚀  ${NC}"
-echo -e "${PURPLE}======================================${NC}"
+echo -e "${C_TITLE}======================================${C_RESET}"
+echo -e "${C_TITLE}  🚀 UNI-SENTINEL AUTO-INSTALLER 🚀   ${C_RESET}"
+echo -e "${C_TITLE}======================================${C_RESET}\n"
 
-echo -e "Какой стек технологий ты будешь использовать?"
-echo -e "  1) ${BLUE}C / C++${NC} (School 21, GCC, Valgrind, Make)"
-echo -e "  2) ${GREEN}C# / .NET${NC} (Core.AI, Web, Desktop)"
-echo -e "  3) ${YELLOW}Всё и сразу${NC} (Fullstack Titan)"
-read -p "Выбери номер [1-3]: " STACK_CHOICE
+echo -e "Какой стек технологий защищаем, Shadow Monarch?"
+echo -e "  1) ${C_MAIN}C / C++${C_RESET} (Make, GCC/Clang, Valgrind)"
+echo -e "  2) ${C_OK}C# / .NET${C_RESET} (.NET 10 SDK)"
+echo -e "  3) ${C_WARN}Всё и сразу${C_RESET} (Titan Mode)"
+
+read -p "Выбери номер [1-3]: " STACK_CHOICE </dev/tty
 
 PM=""
 if command -v apt-get &> /dev/null; then PM="apt-get"
@@ -32,22 +30,37 @@ if [[ "$STACK_CHOICE" == "1" || "$STACK_CHOICE" == "3" ]]; then
     DEPS+="clang build-essential valgrind lcov cppcheck "
 fi
 if [[ "$STACK_CHOICE" == "2" || "$STACK_CHOICE" == "3" ]]; then
-    if [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then DEPS+="dotnet-sdk-10.0 "; fi
+    if ! command -v dotnet &> /dev/null || [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then 
+        DEPS+="dotnet-sdk-10.0 "
+    fi
 fi
 
-if [ "$DEPS" != "git " ]; then
-    echo -e "${YELLOW}[!] Устанавливаем зависимости: ${RED}$DEPS${NC}"
+if [ "$DEPS" != "git " ] && [ -n "$PM" ]; then
+    echo -e "\n${C_WARN}[!] Устанавливаем системные зависимости: ${C_RESET}$DEPS"
     if [ "$PM" == "apt-get" ]; then sudo apt-get update && sudo apt-get install -y $DEPS
     elif [ "$PM" == "pacman" ]; then sudo pacman -S --noconfirm $DEPS
     elif [ "$PM" == "dnf" ]; then sudo dnf install -y $DEPS
     fi
 fi
 
-echo -e "\n${BLUE}⬇️ Установка ядра...${NC}"
+echo -e "\n${C_MAIN}[⬇️] Скачивание ядра Uni-Sentinel...${C_RESET}"
 URL="https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-linux"
-# Если собираем из исходников, можно оставить твой git clone. Но для юзеров лучше качать бинарник напрямую:
-sudo curl -L -q "$URL" -o "$INSTALL_DIR/$BINARY_NAME" || { echo -e "${RED}[ERR] Ошибка скачивания! Проверь GitHub Releases.${NC}"; exit 1; }
-sudo chmod 755 "$INSTALL_DIR/$BINARY_NAME"
 
-echo -e "\n${GREEN}✅ УСТАНОВКА ЗАВЕРШЕНА УСПЕШНО!${NC}"
-echo -e "Попробуй команду: ${PURPLE}$BINARY_NAME help${NC}"
+if sudo curl -sL "$URL" -o /usr/local/bin/uni-sentinel; then
+    sudo chmod +x /usr/local/bin/uni-sentinel
+    echo -e "${C_OK}[OK] Установлено глобально в /usr/local/bin${C_RESET}"
+else
+    echo -e "${C_WARN}[!] Нет sudo. Устанавливаю локально в ~/.local/bin${C_RESET}"
+    mkdir -p ~/.local/bin
+    curl -sL "$URL" -o ~/.local/bin/uni-sentinel
+    chmod +x ~/.local/bin/uni-sentinel
+    
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+fi
+
+echo -e "\n${C_OK}✅ УСТАНОВКА ЗАВЕРШЕНА!${C_RESET}"
+echo -e "Инструмент активирован. Попробуй: ${C_TITLE}uni-sentinel help${C_RESET}\n"

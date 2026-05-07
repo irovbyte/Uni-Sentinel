@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using UniSentinel.Handlers.C;
 namespace UniSentinel.Core;
-internal class Scanner(string rootPath)
+internal sealed class Scanner(string rootPath)
 {
     private readonly string _root = Path.GetFullPath(rootPath);
     private static readonly FrozenSet<string> t_excludeDirs = new[]
@@ -10,7 +10,8 @@ internal class Scanner(string rootPath)
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     private static readonly FrozenSet<string> t_targetExtensions = new[]
     {
-        ".cs", ".c", ".h", ".cpp", ".hpp", ".csproj", ".sln", ".slnx", ".json"
+        ".cs", ".c", ".h", ".cpp", ".hpp", ".csproj", ".sln", ".slnx", ".json",
+    ".sh", ".ps1", ".yml", ".yaml"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     private List<string>? _cachedFiles;
     public List<string> GetProjectFiles()

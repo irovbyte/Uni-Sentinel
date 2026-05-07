@@ -1,5 +1,5 @@
 namespace UniSentinel.Handlers.CSharp;
-internal class ProjectManager(string projectPath, string projectFile)
+internal sealed class ProjectManager(string projectPath, string projectFile)
 {
     private readonly string _modulePath = CSharpSettings.ModulePath;
     private string _buildCacheBase = string.Empty;

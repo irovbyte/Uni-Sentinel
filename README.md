@@ -1,11 +1,11 @@
 # 🛡️ Uni-Sentinel (Native AOT Edition)
 
-![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
 ![.NET](https://img.shields.io/badge/.NET-10.0%20AOT-purple.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
 
-**Uni-Sentinel** — это ультимативный, молниеносный инструмент для локального аудита кода и автоматизации CI/CD. Написанный на C# и скомпилированный в машинный код (Native AOT), он работает в 10 раз быстрее скриптовых аналогов.
+**Uni-Sentinel** — это ультимативный, молниеносный инструмент для локального аудита кода и автоматизации CI/CD. Написанный на C# и скомпилированный в машинный код (Native AOT), он работает в разы быстрее скриптовых аналогов и не требует среды выполнения .NET на устройстве пользователя.
 
 Он сам установит нужные зависимости, найдет ваши `Makefile` или `.csproj`, проверит код на утечки памяти, стиль и строгие правила структурного программирования, а заодно — **прокачает ваш ранг за чистый код**.
 
@@ -13,51 +13,60 @@
 
 ---
 
-## 🚀 Установка (Одной командой)
+## 🚀 Быстрая установка
 
-Вставьте эту строку в терминал. Скрипт скачает исходники, скомпилирует бинарник и установит его в вашу систему глобально.
+Выберите вашу ОС и вставьте команду в терминал. Скрипт автоматически загрузит актуальное ядро, настроит системные пути и подготовит **Uni-Sentinel** к работе.
 
+**Linux / WSL / macOS**
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh)
+bash <(curl -sL [https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh](https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.sh))
 ```
-*(Никаких перезагрузок оболочки или возни с алиасами. Инструмент сразу готов к бою).*
+
+**Windows (PowerShell)**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm [https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.ps1](https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.ps1) | iex"
+```
+
+> [!IMPORTANT]
+> **Инструмент готов к бою сразу после выполнения команды.** Никаких ручных правок `.bashrc`, переменных среды или возни с алиасами. 
 
 ---
 
-## 🎮 Геймификация: От Trainee до Shadow Monarch
+## 🎮 Геймификация: От Trainee до Core Singularity
 
-Uni-Sentinel не просто ругается на ошибки. За каждый прогон проекта без единого нарушения вы получаете **+1 XP**. Накопленный опыт открывает новые ранги и полностью меняет эстетику вашего терминала.
+Uni-Sentinel не просто ругается на ошибки. За каждый прогон проекта без единого нарушения вы получаете **+1 XP**. Накопленный опыт открывает новые ранги и полностью меняет эстетику вашего терминала. Система отслеживает ваши стрики (ежедневную активность) и дает множители опыта!
 
 * **0 XP:** `Trainee` (Серый)
-* **1 XP:** `Awakened` (Ледяной синий)
-* **25 XP:** `Lycoris Elite` (Кроваво-красный)
-* **100+ XP:** `SHADOW MONARCH` (Абсолютная тьма)
+* **10 XP:** `Sentinel` (Зеленый)
+* **25 XP:** `Cyber Runner` (Неоновый)
+* **100 XP:** `VIPER BOSS` (Токсичный фиолетовый)
+* **150+ XP:** `SHADOW MONARCH` (Абсолютная тьма и багровый акцент)
 
 ---
 
 ## 🔥 Ключевые возможности
 
 ### 🤖 Умное ядро
-* **Auto-Dependency:** Автоматически определяет ваш Linux-дистрибутив (Ubuntu, Arch, Fedora) и предлагает установить недостающие системные пакеты (`make`, `valgrind`, `clang`, `dotnet-sdk`).
-* **Multi-Make Routing:** Находит ВСЕ `Makefile` в проекте (даже в подпапках), парсит цели и выстраивает очередь сборки (`all` -> `test` -> `gcov_report`).
+* **Auto-Dependency:** Автоматически определяет вашу ОС (Windows, Ubuntu, Arch, Fedora) и устанавливает недостающие пакеты (через `winget`, `apt`, `pacman` или `dnf`).
+* **Smart Dump:** Команда для генерации чистого текстового слепка всего проекта (игнорируя мусор) для передачи контекста в LLM.
+* **Multi-Make Routing:** Находит ВСЕ `Makefile` в проекте, парсит цели и интеллектуально выстраивает очередь сборки.
 
 ### 💂 C Strict Guard
-* **Стиль кода (Clang):** Автоматическая генерация и проверка `.clang-format`.
-* **Структура кода (Принципы Дейкстры):** 
-    * 🚫 Блокировка `goto`.
+* **Стиль кода (Clang):** Автоматическая генерация конфигурации и жесткая проверка через `clang-format` (Google / C11).
+* **Принципы Дейкстры:** * 🚫 Полная блокировка `goto`.
     * 📦 Вложенность блоков кода не более 4-х уровней.
     * 📏 Ограничение размера функций (не более 50 строк).
-* **Инспекция Памяти:** Глубокая интеграция с `valgrind`. Умный парсинг `0 errors`.
-* **Anti-Cheat Mode:** Опциональная блокировка использования небезопасных или запрещенных функций (`printf`, `strcpy` и т.д.) в production-файлах.
+* **Инспекция Памяти:** Глубокая интеграция с `valgrind` (поиск утечек).
+* **Anti-Cheat Mode:** Опциональная блокировка опасных стандартных функций (`printf`, `strcpy`, `scanf` и др.) в релизных файлах.
 
 ### 🟣 C# / .NET Enterprise Guard
-* **Анализ Roslyn:** Запуск `dotnet format analyzers` для поиска Code Smells и плохих практик.
+* **Анализ Roslyn:** Запуск `dotnet format analyzers` для поиска Code Smells и устранения плохих практик.
 * **Безопасность (CVE):** Сканирование `NuGet`-пакетов на известные уязвимости.
-* **Авто-форматирование:** Исправление отступов и стилистики на лету.
+* **Авто-форматирование:** Исправление отступов и стилистики на лету (Global Shadow Mode).
 
 ---
 
-## 📖 Использование
+## 📖 Использование CLI
 
 Зайдите в папку с вашим проектом (C/C++ или C#) и введите:
 
@@ -65,15 +74,18 @@ Uni-Sentinel не просто ругается на ошибки. За кажд
 uni-sentinel
 ```
 
-### Команды:
+### Доступные команды:
 
 | Команда | Описание |
 | :--- | :--- |
-| `uni-sentinel` | Запустить полную проверку директории |
-| `uni-sentinel ac on` | **Включить** режим строгого контроля (Anti-Cheat) |
-| `uni-sentinel ac off` | **Выключить** режим строгого контроля |
-| `uni-sentinel update` | Скачать свежую версию из GitHub и пересобрать себя в фоне |
-| `uni-sentinel help` | Показать справку |
+| `uni-sentinel` | Запустить полный аудит текущей директории |
+| `uni-sentinel dump` | Сгенерировать умный дамп кода (`.txt`) для LLM |
+| `uni-sentinel install-hook` | Защитить репозиторий (Git Pre-commit интеграция) |
+| `uni-sentinel ac on` | **Включить** режим Анти-Чит |
+| `uni-sentinel ac off` | **Выключить** режим Анти-Чит |
+| `uni-sentinel update` | Обновить ядро из GitHub (авто-пересборка) |
+| `uni-sentinel uninstall` | Полностью удалить систему и сбросить прогресс |
+| `uni-sentinel help` | Показать справку по командам |
 
 ---
 
@@ -81,3 +93,4 @@ uni-sentinel
   <b>Forged in the shadows by <a href="https://github.com/irovbyte">irovbyte</a></b><br>
   <i>Powered by C# & .NET 10 Native AOT</i>
 </div>
+```

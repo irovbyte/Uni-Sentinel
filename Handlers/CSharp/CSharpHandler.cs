@@ -1,5 +1,5 @@
 namespace UniSentinel.Handlers.CSharp;
-internal partial class CSharpHandler : BaseHandler
+internal sealed partial class CSharpHandler : BaseHandler
 {
     [GeneratedRegex(@"(@(?:""[^""]*"")+|""(?:[^""\n\\]+|\\.)*""|'(?:[^'\n\\]+|\\.)*')|//.*|/\*[\s\S]*?\*/", RegexOptions.Compiled)]
     private static partial Regex CommentsRegex();
