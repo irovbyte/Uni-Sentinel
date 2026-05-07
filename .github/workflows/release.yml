@@ -1,0 +1,64 @@
+﻿name: Build and Release Uni-Sentinel
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: uni-sentinel-linux
+            asset_name: uni-sentinel-linux
+          - os: windows-latest
+            artifact_name: uni-sentinel-win.exe
+            asset_name: uni-sentinel-win.exe
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Publish (Native AOT)
+      run: dotnet publish ./UniSentinel.csproj -c Release -r ${{ matrix.os == 'ubuntu-latest' && 'linux-x64' || 'win-x64' }} --self-contained true -o ./publish
+
+    - name: Rename Artifact
+      shell: bash
+      run: |
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          mv ./publish/UniSentinel.exe ./${{ matrix.asset_name }}
+        else
+          mv ./publish/UniSentinel ./${{ matrix.asset_name }}
+        fi
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.asset_name }}
+
+  create_release:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Uni-Sentinel Build ${{ github.run_number }}
+          files: |
+            uni-sentinel-linux/uni-sentinel-linux
+            uni-sentinel-win.exe/uni-sentinel-win.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

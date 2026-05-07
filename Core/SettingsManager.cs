@@ -1,22 +1,24 @@
 namespace UniSentinel.Core;
-
-public static class SettingsManager
+internal static class SettingsManager
 {
-    private static readonly string ConfigFile = Path.Combine(
+    private static readonly string t_configFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".uni-sentinel-config"
+        ".uni_config",
+        "anti-cheat.cfg"
     );
-
-    public static bool IsAntiCheatEnabled()
-    {
-        if (!File.Exists(ConfigFile)) return false;
-        return File.ReadAllText(ConfigFile).Trim() == "AC=1";
-    }
-
+    public static bool IsAntiCheatEnabled() =>
+        File.Exists(t_configFile) && File.ReadAllText(t_configFile).Trim() is "AC=1";
     public static void SetAntiCheat(bool enable)
     {
-        File.WriteAllText(ConfigFile, enable ? "AC=1" : "AC=0");
-        if (enable) Logger.Success("Режим Anti-Cheat ВКЛЮЧЕН. Пощады не будет.");
-        else Logger.Info("Режим Anti-Cheat ВЫКЛЮЧЕН.");
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(t_configFile)!);
+        File.WriteAllText(t_configFile, enable ? "AC=1" : "AC=0");
+        if (enable)
+        {
+            Logger.Success("Режим Anti-Cheat ВКЛЮЧЕН. Пощады не будет.");
+        }
+        else
+        {
+            Logger.Info("Режим Anti-Cheat ВЫКЛЮЧЕН.");
+        }
     }
 }

@@ -1,10 +1,8 @@
-#!/bin/bash
-
+﻿#!/bin/bash
 APP_NAME="Uni-Sentinel"
 BINARY_NAME="uni-sentinel"
-REPO_URL="https://github.com/irovbyte/Uni-Sentinel.git"
-TMP_DIR="/tmp/uni-sentinel-installer"
 INSTALL_DIR="/usr/local/bin"
+TMP_DIR="/tmp/uni-sentinel-installer"
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -17,70 +15,39 @@ echo -e "${PURPLE}======================================${NC}"
 echo -e "${PURPLE}  🚀 ULTRA INSTALLER: ${APP_NAME} 🚀  ${NC}"
 echo -e "${PURPLE}======================================${NC}"
 
+echo -e "Какой стек технологий ты будешь использовать?"
+echo -e "  1) ${BLUE}C / C++${NC} (School 21, GCC, Valgrind, Make)"
+echo -e "  2) ${GREEN}C# / .NET${NC} (Core.AI, Web, Desktop)"
+echo -e "  3) ${YELLOW}Всё и сразу${NC} (Fullstack Titan)"
+read -p "Выбери номер [1-3]: " STACK_CHOICE
+
 PM=""
 if command -v apt-get &> /dev/null; then PM="apt-get"
 elif command -v pacman &> /dev/null; then PM="pacman"
 elif command -v dnf &> /dev/null; then PM="dnf"
 fi
 
-MISSING_DEPS=""
-DOTNET_VER=$(dotnet --version 2>/dev/null | cut -d. -f1)
+DEPS="git "
+if [[ "$STACK_CHOICE" == "1" || "$STACK_CHOICE" == "3" ]]; then
+    DEPS+="clang build-essential valgrind lcov cppcheck "
+fi
+if [[ "$STACK_CHOICE" == "2" || "$STACK_CHOICE" == "3" ]]; then
+    if [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then DEPS+="dotnet-sdk-10.0 "; fi
+fi
 
-if ! command -v git &> /dev/null; then MISSING_DEPS+="git "; fi
-if ! command -v clang &> /dev/null && ! command -v gcc &> /dev/null; then MISSING_DEPS+="clang build-essential "; fi
-if [ "$DOTNET_VER" != "10" ]; then MISSING_DEPS+="dotnet-sdk-10.0 "; fi
-
-if [ -n "$MISSING_DEPS" ]; then
-    echo -e "${YELLOW}[!] Необходимы зависимости: ${RED}$MISSING_DEPS${NC}"
-    if [ -n "$PM" ]; then
-        read -p "Установить всё автоматически? [y/N]: " choice
-        if [[ "$choice" == [Yy]* ]]; then
-            if [ "$PM" == "apt-get" ]; then
-                sudo apt-get update && sudo apt-get install -y git clang build-essential dotnet-sdk-10.0
-            elif [ "$PM" == "pacman" ]; then
-                sudo pacman -S --noconfirm git clang dotnet-sdk
-            elif [ "$PM" == "dnf" ]; then
-                sudo dnf install -y git clang dotnet-sdk-10.0
-            fi
-        else
-            echo -e "${RED}[ERR] Отмена установки.${NC}"; exit 1
-        fi
+if [ "$DEPS" != "git " ]; then
+    echo -e "${YELLOW}[!] Устанавливаем зависимости: ${RED}$DEPS${NC}"
+    if [ "$PM" == "apt-get" ]; then sudo apt-get update && sudo apt-get install -y $DEPS
+    elif [ "$PM" == "pacman" ]; then sudo pacman -S --noconfirm $DEPS
+    elif [ "$PM" == "dnf" ]; then sudo dnf install -y $DEPS
     fi
 fi
 
-echo -e "\n${BLUE}⬇️ Клонирование репозитория...${NC}"
-rm -rf "$TMP_DIR"
-git clone -q "$REPO_URL" "$TMP_DIR" || { echo -e "${RED}[ERR] Ошибка сети${NC}"; exit 1; }
-cd "$TMP_DIR"
-
-echo -e "${BLUE}⚙️ Компиляция Native AOT (net10.0)...${NC}"
-dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishAot=true -p:InvariantGlobalization=true -f net10.0 -v q
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}[ERR] Сборка провалилась!${NC}"; exit 1
-fi
-
-BINARY_PATH="bin/Release/net10.0/linux-x64/publish/UniSentinel"
-echo -e "${BLUE}🛡️ Регистрация в системе...${NC}"
-sudo cp "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
+echo -e "\n${BLUE}⬇️ Установка ядра...${NC}"
+URL="https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-linux"
+# Если собираем из исходников, можно оставить твой git clone. Но для юзеров лучше качать бинарник напрямую:
+sudo curl -L -q "$URL" -o "$INSTALL_DIR/$BINARY_NAME" || { echo -e "${RED}[ERR] Ошибка скачивания! Проверь GitHub Releases.${NC}"; exit 1; }
 sudo chmod 755 "$INSTALL_DIR/$BINARY_NAME"
-sudo chown root:root "$INSTALL_DIR/$BINARY_NAME"
 
-echo -e "${BLUE}🔗 Настройка путей (PATH)...${NC}"
-for CONFIG in "$HOME/.zshrc" "$HOME/.bashrc"; do
-    if [ -f "$CONFIG" ]; then
-        if ! grep -q "$INSTALL_DIR" "$CONFIG"; then
-            echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$CONFIG"
-            echo -e "${GREEN}  - Путь добавлен в $CONFIG${NC}"
-        fi
-    fi
-done
-
-cd ~
-rm -rf "$TMP_DIR"
-
-echo -e "\n${GREEN}======================================${NC}"
-echo -e "${GREEN}✅ УСТАНОВКА ЗАВЕРШЕНА УСПЕШНО!${NC}"
-echo -e "${YELLOW}ВАЖНО: Перезапусти терминал или введи: source ~/.zshrc${NC}"
+echo -e "\n${GREEN}✅ УСТАНОВКА ЗАВЕРШЕНА УСПЕШНО!${NC}"
 echo -e "Попробуй команду: ${PURPLE}$BINARY_NAME help${NC}"
-echo -e "${GREEN}======================================${NC}"

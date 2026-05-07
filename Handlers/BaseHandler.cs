@@ -1,16 +1,9 @@
 namespace UniSentinel.Handlers;
-
-public abstract class BaseHandler
+internal abstract class BaseHandler(string projectPath, List<string> files)
 {
-    protected readonly string ProjectPath;
-    protected readonly List<string> Files;
-
-    protected BaseHandler(string projectPath, List<string> files)
-    {
-        ProjectPath = projectPath;
-        Files = files;
-    }
-
+    protected string ProjectPath { get; } = projectPath;
+    protected List<string> Files { get; } = files;
+    public abstract Task<bool> CheckDependenciesAsync();
     public virtual Task<(bool Ok, int Points)> CheckGitAsync() => Task.FromResult((true, 0));
     public virtual Task<(bool Ok, int Points)> CheckAntiCheatAsync() => Task.FromResult((true, 0));
     public abstract Task<(bool Ok, int Points)> CheckStyleAsync();
