@@ -24,7 +24,7 @@ bash <(curl -sL [https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/in
 
 **Windows (PowerShell)**
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm [https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.ps1](https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.ps1) | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/install.ps1 | iex"
 ```
 
 > [!IMPORTANT]
@@ -93,4 +93,3 @@ uni-sentinel
   <b>Forged in the shadows by <a href="https://github.com/irovbyte">irovbyte</a></b><br>
   <i>Powered by C# & .NET 10 Native AOT</i>
 </div>
-```
