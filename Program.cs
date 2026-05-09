@@ -159,6 +159,27 @@ if (args.Length > 0)
     if (command == "update")
     {
         Logger.Header("ГЛОБАЛЬНОЕ ОБНОВЛЕНИЕ ИЗ GITHUB");
+        DependencyManager.RefreshSystemPath();
+        if (!await DependencyManager.CheckToolAsync("git"))
+        {
+            Logger.Fail("Git не найден! Команда update требует установленного Git.");
+            Logger.Info("Выполни команду 'uni-sentinel install', чтобы система установила всё необходимое.");
+            return;
+        }
+        var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && currentExe != null && currentExe.Contains(".uni-sentinel"))
+        {
+            try
+            {
+                var oldExe = currentExe + ".old";
+                if (File.Exists(oldExe))
+                {
+                    File.Delete(oldExe);
+                }
+                File.Move(currentExe, oldExe);
+            }
+            catch {  }
+        }
         var repoUrl = "https://github.com/irovbyte/Uni-Sentinel.git";
         var tmpDir = Path.Combine(Path.GetTempPath(), "uni-sentinel-update");
         Logger.Info("Связь с сервером... Скачиваю свежий исходный код.");
@@ -177,6 +198,10 @@ if (args.Length > 0)
             Logger.Info("Исходники получены. Запускаю хардкорную пересборку (Native AOT)...");
             var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             var script = isWin ? "pwsh" : "bash";
+            if (isWin && !await DependencyManager.CheckToolAsync("pwsh"))
+            {
+                script = "powershell";
+            }
             var argsStr = isWin ? $"-ExecutionPolicy Bypass -File deploy.ps1" : "deploy.sh";
             var rebuildInfo = new ProcessStartInfo(script, argsStr)
             {
@@ -205,8 +230,8 @@ if (args.Length > 0)
         if (Directory.Exists(tmpDir))
         {
             await Task.Run(() => Directory.Delete(tmpDir, true));
-            return;
         }
+        return;
     }
     if (command == "ac" && args.Length > 1)
     {
@@ -221,8 +246,8 @@ if (args.Length > 0)
         else
         {
             Logger.Fail("Неверный аргумент. Используйте 'ac on' или 'ac off'.");
-            return;
         }
+        return;
     }
     Logger.Fail($"Неизвестная команда: {command}. Введите 'uni-sentinel help'.");
     return;

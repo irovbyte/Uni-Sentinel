@@ -16,7 +16,7 @@ internal sealed partial class AppJsonContext : JsonSerializerContext { }
 public static class DependencyManager
 {
     private const string RegistryUrl = "https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/dependencies.json";
-    private static void RefreshSystemPath()
+    public static void RefreshSystemPath()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -97,7 +97,7 @@ public static class DependencyManager
                 {
                     var psi = new ProcessStartInfo("winget")
                     {
-                        Arguments = $"install --id {packageId} --exact --silent --accept-package-agreements --accept-source-agreements",
+                        Arguments = $"install --id {packageId} --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity",
                         UseShellExecute = true,
                         Verb = "runas",
                         WindowStyle = ProcessWindowStyle.Hidden
@@ -110,16 +110,19 @@ public static class DependencyManager
                             await p.WaitForExitAsync();
                         }
                     }
+                    catch (System.ComponentModel.Win32Exception)
+                    {
+                    }
                     catch (Exception ex) { Logger.Fail($"Ошибка: {ex.Message}"); }
                 });
             }
             RefreshSystemPath();
             Logger.Success("Окружение обновлено. Проверка арсенала...");
-            if ((await Task.WhenAll(stackTools.Select(async t => await CheckToolAsync(t.Id)))).All(result => result))
+            if ((await Task.WhenAll(stackTools.Select(t => CheckToolAsync(t.Id)))).All(result => result))
             {
                 return true;
             }
-            Logger.Info("Перезапусти терминал для полной синхронизации.");
+            Logger.Info("Требуется перезапуск терминала для полной активации путей.");
             return false;
         }
         var (_, manager) = GetDistroInfo();
