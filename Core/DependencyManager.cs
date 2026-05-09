@@ -16,6 +16,38 @@ internal sealed partial class AppJsonContext : JsonSerializerContext { }
 public static class DependencyManager
 {
     private const string RegistryUrl = "https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/dependencies.json";
+    private static void RefreshSystemPath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var userPath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User);
+            var machinePath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.Machine);
+            Environment.SetEnvironmentVariable("PATH", $"{userPath};{machinePath}", EnvironmentVariableTarget.Process);
+        }
+    }
+    public static async Task<bool> CheckToolAsync(string toolName)
+    {
+        var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var checkCmd = isWin ? "where.exe" : "which";
+        var pInfo = new ProcessStartInfo(checkCmd, toolName)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        try
+        {
+            using var p = Process.Start(pInfo);
+            if (p is null)
+            {
+                return false;
+            }
+            await p.WaitForExitAsync();
+            return p.ExitCode == 0;
+        }
+        catch { return false; }
+    }
     public static async Task<bool> RequireStackAsync(string stackName)
     {
         Logger.Info($"Синхронизация Cloud Registry [{stackName.ToUpper()}]...");
@@ -35,37 +67,19 @@ public static class DependencyManager
         {
             return true;
         }
-        var stackTools = tools.Where(t => t.Stack.Equals(stackName, StringComparison.OrdinalIgnoreCase));
-        List<ToolDef> missingTools = [];
         var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var stackTools = tools.Where(t => t.Stack.Equals(stackName, StringComparison.OrdinalIgnoreCase)).ToList();
+        List<ToolDef> missingTools = [];
         foreach (var tool in stackTools)
         {
             if (isWin && tool.Winget == "NONE")
             {
                 continue;
             }
-            var checkCmd = isWin ? "where.exe" : "which";
-            var args = tool.Id;
-            var pInfo = new ProcessStartInfo(checkCmd, args)
+            if (!await CheckToolAsync(tool.Id))
             {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            try
-            {
-                using var p = Process.Start(pInfo);
-                if (p is not null)
-                {
-                    await p.WaitForExitAsync();
-                    if (p.ExitCode != 0)
-                    {
-                        missingTools.Add(tool);
-                    }
-                }
+                missingTools.Add(tool);
             }
-            catch { missingTools.Add(tool); }
         }
         if (missingTools.Count == 0)
         {
@@ -73,14 +87,10 @@ public static class DependencyManager
         }
         Logger.Header("АВТО-ИНСТАЛЛЯТОР");
         Logger.Warning($"Missing: {Settings.Colors.Fail}{string.Join(", ", missingTools.Select(t => t.Id))}{Settings.Colors.Reset}");
-
         if (isWin)
         {
             var wingetPackages = missingTools.Select(t => t.Winget).Distinct().Where(w => w != "NONE").ToList();
-
             Logger.Header("АВТО-УСТАНОВКА ЗАВИСИМОСТЕЙ");
-            Logger.Info("Запрашиваю права администратора для развертывания...");
-
             foreach (var packageId in wingetPackages)
             {
                 await UIHelper.RunWithLoadingAsync($"Установка {packageId}...", async () =>
@@ -92,7 +102,6 @@ public static class DependencyManager
                         Verb = "runas",
                         WindowStyle = ProcessWindowStyle.Hidden
                     };
-
                     try
                     {
                         using var p = Process.Start(psi);
@@ -101,14 +110,16 @@ public static class DependencyManager
                             await p.WaitForExitAsync();
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Logger.Fail($"Не удалось установить {packageId}: {ex.Message}");
-                    }
+                    catch (Exception ex) { Logger.Fail($"Ошибка: {ex.Message}"); }
                 });
             }
-
-            Logger.Success("Все зависимости установлены! Перезапусти проверку.");
+            RefreshSystemPath();
+            Logger.Success("Окружение обновлено. Проверка арсенала...");
+            if ((await Task.WhenAll(stackTools.Select(async t => await CheckToolAsync(t.Id)))).All(result => result))
+            {
+                return true;
+            }
+            Logger.Info("Перезапусти терминал для полной синхронизации.");
             return false;
         }
         var (_, manager) = GetDistroInfo();
@@ -121,12 +132,7 @@ public static class DependencyManager
         {
             return false;
         }
-        Logger.Info("Запрашиваю sudo...");
-        var pkgList = missingTools.Select(t => manager switch
-        {
-            "pacman" => t.Pacman,
-            _ => t.Apt
-        }).Distinct();
+        var pkgList = missingTools.Select(t => manager == "pacman" ? t.Pacman : t.Apt).Distinct();
         var installArgs = manager switch
         {
             "apt-get" => $"install -y {string.Join(" ", pkgList)}",
@@ -154,36 +160,34 @@ public static class DependencyManager
         {
             "ubuntu" or "debian" or "kali" or "mint" => "apt-get",
             "arch" or "manjaro" => "pacman",
-            "fedora" or "centos" or "rhel" => "dnf",
-            _ => ""
+            _ => "dnf"
         };
         return ("Linux", manager);
     }
-    public static class UIHelper
+}
+public static class UIHelper
+{
+    public static async Task RunWithLoadingAsync(string message, Func<Task> task)
     {
-        public static async Task RunWithLoadingAsync(string message, Func<Task> task)
+        var spinner = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+        var counter = 0;
+        using var cts = new CancellationTokenSource();
+        var loadingTask = Task.Run(async () =>
         {
-            var spinner = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
-            var counter = 0;
-            using var cts = new CancellationTokenSource();
-            var loadingTask = Task.Run(async () =>
+            while (!cts.IsCancellationRequested)
             {
-                while (!cts.IsCancellationRequested)
-                {
-                    Console.Write($"\r {Settings.Colors.AwakeAccent}{spinner[counter % spinner.Length]}{Settings.Colors.Reset} {message} ");
-                    counter++;
-                    await Task.Delay(100);
-                }
-            });
-
-            try
-            { await task(); }
-            finally
-            {
-                cts.Cancel();
-                await loadingTask;
-                Console.Write("\r" + new string(' ', 80) + "\r");
+                Console.Write($"\r {Settings.Colors.AwakeAccent}{spinner[counter % spinner.Length]}{Settings.Colors.Reset} {message} ");
+                counter++;
+                await Task.Delay(100);
             }
+        });
+        try
+        { await task(); }
+        finally
+        {
+            cts.Cancel();
+            await loadingTask;
+            Console.Write("\r" + new string(' ', 80) + "\r");
         }
     }
 }
