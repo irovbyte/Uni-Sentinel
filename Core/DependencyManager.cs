@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace UniSentinel.Core;
 public sealed class ToolDef
 {
-    public string Id { get; init; } = ""; 
+    public string Id { get; init; } = "";
     public string Stack { get; init; } = "";
     public string Apt { get; init; } = "";
     public string Pacman { get; init; } = "";
@@ -36,7 +36,7 @@ public static class DependencyManager
             return true;
         }
         var stackTools = tools.Where(t => t.Stack.Equals(stackName, StringComparison.OrdinalIgnoreCase));
-        List<ToolDef> missingTools = []; 
+        List<ToolDef> missingTools = [];
         var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         foreach (var tool in stackTools)
         {
@@ -44,23 +44,28 @@ public static class DependencyManager
             {
                 continue;
             }
-            var checkCmd = isWin ? "pwsh" : "which";
-            var args = isWin ? $"-Command \"Get-Command {tool.Id} -ErrorAction SilentlyContinue\"" : tool.Id;
+            var checkCmd = isWin ? "where.exe" : "which";
+            var args = tool.Id;
             var pInfo = new ProcessStartInfo(checkCmd, args)
             {
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            using var p = Process.Start(pInfo);
-            if (p is not null)
+            try
             {
-                await p.WaitForExitAsync();
-                if (p.ExitCode != 0)
+                using var p = Process.Start(pInfo);
+                if (p is not null)
                 {
-                    missingTools.Add(tool);
+                    await p.WaitForExitAsync();
+                    if (p.ExitCode != 0)
+                    {
+                        missingTools.Add(tool);
+                    }
                 }
             }
+            catch { missingTools.Add(tool); }
         }
         if (missingTools.Count == 0)
         {
@@ -68,13 +73,42 @@ public static class DependencyManager
         }
         Logger.Header("АВТО-ИНСТАЛЛЯТОР");
         Logger.Warning($"Missing: {Settings.Colors.Fail}{string.Join(", ", missingTools.Select(t => t.Id))}{Settings.Colors.Reset}");
+
         if (isWin)
         {
-            var wingetPackages = missingTools.Select(t => t.Winget).Distinct().Where(w => w != "NONE");
-            var wingetCmd = $"winget install {string.Join(" ", wingetPackages)} --accept-package-agreements --accept-source-agreements";
-            Logger.Info("Требуется вмешательство администратора...");
-            Console.WriteLine($"\n {Settings.Colors.LycorisAccent}Выполни в PowerShell (Admin):{Settings.Colors.Reset}");
-            Console.WriteLine($" {Settings.Colors.Bold}{wingetCmd}{Settings.Colors.Reset}\n");
+            var wingetPackages = missingTools.Select(t => t.Winget).Distinct().Where(w => w != "NONE").ToList();
+
+            Logger.Header("АВТО-УСТАНОВКА ЗАВИСИМОСТЕЙ");
+            Logger.Info("Запрашиваю права администратора для развертывания...");
+
+            foreach (var packageId in wingetPackages)
+            {
+                await UIHelper.RunWithLoadingAsync($"Установка {packageId}...", async () =>
+                {
+                    var psi = new ProcessStartInfo("winget")
+                    {
+                        Arguments = $"install --id {packageId} --exact --silent --accept-package-agreements --accept-source-agreements",
+                        UseShellExecute = true,
+                        Verb = "runas",
+                        WindowStyle = ProcessWindowStyle.Hidden
+                    };
+
+                    try
+                    {
+                        using var p = Process.Start(psi);
+                        if (p != null)
+                        {
+                            await p.WaitForExitAsync();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Fail($"Не удалось установить {packageId}: {ex.Message}");
+                    }
+                });
+            }
+
+            Logger.Success("Все зависимости установлены! Перезапусти проверку.");
             return false;
         }
         var (_, manager) = GetDistroInfo();
@@ -88,7 +122,11 @@ public static class DependencyManager
             return false;
         }
         Logger.Info("Запрашиваю sudo...");
-        var pkgList = missingTools.Select(t => manager == "apt-get" ? t.Apt : (manager == "pacman" ? t.Pacman : t.Apt)).Distinct();
+        var pkgList = missingTools.Select(t => manager switch
+        {
+            "pacman" => t.Pacman,
+            _ => t.Apt
+        }).Distinct();
         var installArgs = manager switch
         {
             "apt-get" => $"install -y {string.Join(" ", pkgList)}",
@@ -111,7 +149,7 @@ public static class DependencyManager
         }
         var lines = File.ReadAllLines("/etc/os-release");
         var idLine = lines.FirstOrDefault(l => l.StartsWith("ID=", StringComparison.OrdinalIgnoreCase)) ?? "";
-        var id = idLine.Split('=')[1].Trim('"');
+        var id = idLine.Contains('=') ? idLine.Split('=')[1].Trim('"') : "";
         var manager = id switch
         {
             "ubuntu" or "debian" or "kali" or "mint" => "apt-get",
@@ -120,5 +158,32 @@ public static class DependencyManager
             _ => ""
         };
         return ("Linux", manager);
+    }
+    public static class UIHelper
+    {
+        public static async Task RunWithLoadingAsync(string message, Func<Task> task)
+        {
+            var spinner = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+            var counter = 0;
+            using var cts = new CancellationTokenSource();
+            var loadingTask = Task.Run(async () =>
+            {
+                while (!cts.IsCancellationRequested)
+                {
+                    Console.Write($"\r {Settings.Colors.AwakeAccent}{spinner[counter % spinner.Length]}{Settings.Colors.Reset} {message} ");
+                    counter++;
+                    await Task.Delay(100);
+                }
+            });
+
+            try
+            { await task(); }
+            finally
+            {
+                cts.Cancel();
+                await loadingTask;
+                Console.Write("\r" + new string(' ', 80) + "\r");
+            }
+        }
     }
 }
