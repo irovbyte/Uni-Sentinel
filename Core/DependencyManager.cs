@@ -25,6 +25,62 @@ public static class DependencyManager
             Environment.SetEnvironmentVariable("PATH", $"{userPath};{machinePath}", EnvironmentVariableTarget.Process);
         }
     }
+    private static void AutoFixWindowsPaths()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+        var systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var searchDirs = new List<string>
+        {
+            Path.Combine(programFiles, "LLVM", "bin"),
+            Path.Combine(programFiles, "cppcheck"),
+            Path.Combine(systemDrive, "msys64", "mingw64", "bin"),
+            Path.Combine(systemDrive, "msys64", "usr", "bin")
+        };
+        var winGetPackages = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
+        if (Directory.Exists(winGetPackages))
+        {
+            foreach (var pkgDir in Directory.GetDirectories(winGetPackages))
+            {
+                if (pkgDir.Contains("WinLibs") || pkgDir.Contains("MinGW"))
+                {
+                    searchDirs.Add(Path.Combine(pkgDir, "mingw64", "bin"));
+                }
+            }
+        }
+        var envPath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User) ?? "";
+        var paths = envPath.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+        var changedPath = false;
+        foreach (var dir in searchDirs)
+        {
+            if (!Directory.Exists(dir))
+            {
+                continue;
+            }
+            var mingwMake = Path.Combine(dir, "mingw32-make.exe");
+            var make = Path.Combine(dir, "make.exe");
+            if (File.Exists(mingwMake) && !File.Exists(make))
+            {
+                try
+                { File.Copy(mingwMake, make); }
+                catch { }
+            }
+            if (!paths.Any(p => p.Equals(dir, StringComparison.OrdinalIgnoreCase)))
+            {
+                paths.Add(dir);
+                changedPath = true;
+            }
+        }
+        if (changedPath)
+        {
+            Environment.SetEnvironmentVariable("Path", string.Join(";", paths), EnvironmentVariableTarget.User);
+            RefreshSystemPath();
+        }
+    }
     public static async Task<bool> CheckToolAsync(string toolName)
     {
         var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -89,7 +145,8 @@ public static class DependencyManager
         Logger.Warning($"Missing: {Settings.Colors.Fail}{string.Join(", ", missingTools.Select(t => t.Id))}{Settings.Colors.Reset}");
         if (isWin)
         {
-            var wingetPackages = missingTools.Select(t => t.Winget).Distinct().Where(w => w != "NONE").ToList();
+            var wingetPackages = missingTools.Select(t => t.Winget == "GNU.MinGW-w64" ? "WinLibs.GCC" : t.Winget)
+                                             .Distinct().Where(w => w != "NONE").ToList();
             Logger.Header("АВТО-УСТАНОВКА ЗАВИСИМОСТЕЙ");
             foreach (var packageId in wingetPackages)
             {
@@ -110,12 +167,10 @@ public static class DependencyManager
                             await p.WaitForExitAsync();
                         }
                     }
-                    catch (System.ComponentModel.Win32Exception)
-                    {
-                    }
-                    catch (Exception ex) { Logger.Fail($"Ошибка: {ex.Message}"); }
+                    catch { }
                 });
             }
+            AutoFixWindowsPaths();
             RefreshSystemPath();
             Logger.Success("Окружение обновлено. Проверка арсенала...");
             if ((await Task.WhenAll(stackTools.Select(t => CheckToolAsync(t.Id)))).All(result => result))

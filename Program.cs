@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 [assembly: SupportedOSPlatform("windows")]
@@ -18,14 +19,14 @@ if (args.Length > 0)
     {
         Console.WriteLine($"\n{Settings.Colors.Bold}{Settings.AppName} v{Settings.Version}{Settings.Colors.Reset}");
         Console.WriteLine("Использование:");
-        Console.WriteLine("  uni-sentinel              -> Запустить проверку проекта");
-        Console.WriteLine("  uni-sentinel install      -> Установить Сентинель и все C/C++ компиляторы");
-        Console.WriteLine("  uni-sentinel update       -> Обновить утилиту из GitHub");
-        Console.WriteLine("  uni-sentinel uninstall    -> Полностью удалить Uni-Sentinel");
-        Console.WriteLine("  uni-sentinel dump         -> Умный дамп кода (C/C++ или C#)");
+        Console.WriteLine("  uni-sentinel             -> Запустить проверку проекта");
+        Console.WriteLine("  uni-sentinel install     -> Установить Сентинель и все C/C++ компиляторы");
+        Console.WriteLine("  uni-sentinel update      -> Обновить утилиту из GitHub");
+        Console.WriteLine("  uni-sentinel uninstall   -> Полностью удалить Uni-Sentinel");
+        Console.WriteLine("  uni-sentinel dump        -> Умный дамп кода (C/C++ или C#)");
         Console.WriteLine("  uni-sentinel install-hook -> Защитить репозиторий (Git Pre-commit)");
-        Console.WriteLine("  uni-sentinel ac on        -> Включить режим Анти-Чит");
-        Console.WriteLine("  uni-sentinel ac off       -> Выключить режим Анти-Чит");
+        Console.WriteLine("  uni-sentinel ac on       -> Включить режим Анти-Чит");
+        Console.WriteLine("  uni-sentinel ac off      -> Выключить режим Анти-Чит");
         return;
     }
     if (command == "install")
@@ -82,15 +83,10 @@ if (args.Length > 0)
                 }
                 Logger.Success("Uni-Sentinel успешно удален. Прощай, Shadow Monarch...");
             }
-            catch (Exception ex)
-            {
-                Logger.Fail($"Ошибка при удалении: {ex.Message}");
-            }
+            catch (Exception ex) { Logger.Fail($"Ошибка при удалении: {ex.Message}"); }
         }
         else
-        {
-            Logger.Info("Удаление отменено.");
-        }
+        { Logger.Info("Удаление отменено."); }
         return;
     }
     if (command == "install-hook")
@@ -108,33 +104,19 @@ if (args.Length > 0)
             var vsCodeRunning = Process.GetProcessesByName("Code").Length > 0;
             if (vsCodeRunning)
             {
-                var pInfo = new ProcessStartInfo("code", "-s")
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
+                var pInfo = new ProcessStartInfo("code", "-s") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
                 using var p = Process.Start(pInfo);
                 _ = p?.WaitForExit(500);
             }
             else
-            {
-                Thread.Sleep(300);
-            }
+            { Thread.Sleep(300); }
         }
         catch { }
-        var solutionFile = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.slnx").FirstOrDefault()
-                           ?? Directory.GetFiles(Directory.GetCurrentDirectory(), "*.sln").FirstOrDefault();
-        var projectName = solutionFile != null
-            ? Path.GetFileNameWithoutExtension(solutionFile)
-            : new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
+        var solutionFile = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.slnx").FirstOrDefault() ?? Directory.GetFiles(Directory.GetCurrentDirectory(), "*.sln").FirstOrDefault();
+        var projectName = solutionFile != null ? Path.GetFileNameWithoutExtension(solutionFile) : new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
         var outputFile = $"{projectName}_dump.txt";
         if (File.Exists(outputFile))
-        {
-            File.Delete(outputFile);
-            Logger.Warning($"Старый файл '{outputFile}' стерт.");
-        }
+        { File.Delete(outputFile); Logger.Warning($"Старый файл '{outputFile}' стерт."); }
         var dumpScanner = new Scanner(Directory.GetCurrentDirectory());
         var files = dumpScanner.GetSmartDumpFiles(null);
         await using var writer = new StreamWriter(outputFile, append: false);
@@ -167,7 +149,7 @@ if (args.Length > 0)
             return;
         }
         var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && currentExe != null && currentExe.Contains(".uni-sentinel"))
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && currentExe != null && currentExe.Contains("uni-sentinel", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
@@ -178,7 +160,7 @@ if (args.Length > 0)
                 }
                 File.Move(currentExe, oldExe);
             }
-            catch {  }
+            catch { }
         }
         var repoUrl = "https://github.com/irovbyte/Uni-Sentinel.git";
         var tmpDir = Path.Combine(Path.GetTempPath(), "uni-sentinel-update");
@@ -256,46 +238,16 @@ ScoreManager.PrintRankBanner();
 ScoreManager.UpdateStreak();
 var scanner = new Scanner(Directory.GetCurrentDirectory());
 var handler = scanner.DetectHandler();
-if (handler == null)
-{
-    return;
-}
-if (!await handler.CheckDependenciesAsync())
-{
-    return;
-}
+if (handler == null) { return; }
+if (!await handler.CheckDependenciesAsync()) { return; }
 var allPassed = true;
-if (await handler.CheckGitAsync() is { Ok: false })
-{
-    allPassed = false;
-}
-if (SettingsManager.IsAntiCheatEnabled())
-{
-    if (await handler.CheckAntiCheatAsync() is { Ok: false })
-    {
-        allPassed = false;
-    }
-}
-if (await handler.CheckStyleAsync() is { Ok: false })
-{
-    allPassed = false;
-}
-if (await handler.BuildAsync() is { Ok: false })
-{
-    allPassed = false;
-}
-if (await handler.CheckMemoryAsync() is { Ok: false })
-{
-    allPassed = false;
-}
-if (await handler.CheckCpuAsync() is { Ok: false })
-{
-    allPassed = false;
-}
-if (await handler.CheckStructureAsync() is { Ok: false })
-{
-    allPassed = false;
-}
+if (await handler.CheckGitAsync() is { Ok: false }) { allPassed = false; }
+if (SettingsManager.IsAntiCheatEnabled() && await handler.CheckAntiCheatAsync() is { Ok: false }) { allPassed = false; }
+if (await handler.CheckStyleAsync() is { Ok: false }) { allPassed = false; }
+if (await handler.BuildAsync() is { Ok: false }) { allPassed = false; }
+if (await handler.CheckMemoryAsync() is { Ok: false }) { allPassed = false; }
+if (await handler.CheckCpuAsync() is { Ok: false }) { allPassed = false; }
+if (await handler.CheckStructureAsync() is { Ok: false }) { allPassed = false; }
 await handler.StripCommentsAsync();
 await handler.CleanupAsync();
 if (allPassed)
@@ -318,17 +270,16 @@ static async Task InstallToSystemAsync()
     }
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
-        string[] packages = ["Git.Git", "LLVM.LLVM", "GNU.MinGW-w64"];
+        string[] packages = ["Git.Git", "LLVM.LLVM", "WinLibs.GCC"];
         foreach (var pkg in packages)
         {
-            await RunWithLoading($"Установка пакета: {pkg}...", async () =>
+            await UIHelper.RunWithLoadingAsync($"Установка пакета: {pkg}...", async () =>
             {
-                var psi = new ProcessStartInfo("winget", $"install --id {pkg} --silent --accept-package-agreements --accept-source-agreements")
+                var psi = new ProcessStartInfo("winget", $"install --id {pkg} --silent --accept-package-agreements --accept-source-agreements --disable-interactivity")
                 {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    WindowStyle = ProcessWindowStyle.Hidden
                 };
                 try
                 {
@@ -339,15 +290,34 @@ static async Task InstallToSystemAsync()
             });
             Logger.Success($"{pkg} успешно загружен.");
         }
-        await RunWithLoading("Интеграция ядра в Windows PATH...", async () =>
+        DependencyManager.RefreshSystemPath();
+        await UIHelper.RunWithLoadingAsync("Интеграция ядра в Windows PATH...", async () =>
         {
             var targetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".uni-sentinel", "bin");
             _ = Directory.CreateDirectory(targetDir);
             var targetExe = Path.Combine(targetDir, "uni-sentinel.exe");
-            File.Copy(exePath, targetExe, true);
+            var sourceNormalized = Path.GetFullPath(exePath);
+            var targetNormalized = Path.GetFullPath(targetExe);
+            if (!sourceNormalized.Equals(targetNormalized, StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(targetNormalized))
+                {
+                    try
+                    {
+                        var oldExe = targetNormalized + ".old";
+                        if (File.Exists(oldExe))
+                        {
+                            File.Delete(oldExe);
+                        }
+                        File.Move(targetNormalized, oldExe);
+                    }
+                    catch { }
+                }
+                File.Copy(sourceNormalized, targetNormalized, true);
+            }
             var scope = EnvironmentVariableTarget.User;
             var oldPath = Environment.GetEnvironmentVariable("Path", scope);
-            if (oldPath != null && !oldPath.Contains(targetDir))
+            if (oldPath != null && !oldPath.Contains(targetDir, StringComparison.OrdinalIgnoreCase))
             {
                 Environment.SetEnvironmentVariable("Path", $"{oldPath};{targetDir}", scope);
             }
@@ -357,7 +327,7 @@ static async Task InstallToSystemAsync()
     }
     else
     {
-        await RunWithLoading("Интеграция ядра в Linux (/usr/local/bin)...", async () =>
+        await UIHelper.RunWithLoadingAsync("Интеграция ядра в Linux (/usr/local/bin)...", async () =>
         {
             try
             {
@@ -371,29 +341,6 @@ static async Task InstallToSystemAsync()
             catch { }
         });
         Logger.Success("Uni-Sentinel успешно установлен на Linux!");
-    }
-}
-static async Task RunWithLoading(string message, Func<Task> task)
-{
-    var spinner = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
-    var counter = 0;
-    using var cts = new CancellationTokenSource();
-    var loadingTask = Task.Run(async () =>
-    {
-        while (!cts.IsCancellationRequested)
-        {
-            Console.Write($"\r {Settings.Colors.AwakeAccent}{spinner[counter % spinner.Length]}{Settings.Colors.Reset} {message} ");
-            counter++;
-            await Task.Delay(100);
-        }
-    });
-    try
-    { await task(); }
-    finally
-    {
-        cts.Cancel();
-        await loadingTask;
-        Console.Write("\r" + new string(' ', 80) + "\r");
     }
 }
 internal static partial class NativeMethods
