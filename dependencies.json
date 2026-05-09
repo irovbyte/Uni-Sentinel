@@ -4,14 +4,14 @@
     "Stack": "c",
     "Apt": "make",
     "Pacman": "make",
-    "Winget": "GNU.MinGW-w64"
+    "Winget": "WinLibs.GCC"
   },
   {
     "Id": "gcc",
     "Stack": "c",
     "Apt": "build-essential",
     "Pacman": "gcc",
-    "Winget": "GNU.MinGW-w64"
+    "Winget": "WinLibs.GCC"
   },
   {
     "Id": "clang-format",

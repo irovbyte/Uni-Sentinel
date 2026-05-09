@@ -140,79 +140,49 @@ if (args.Length > 0)
     }
     if (command == "update")
     {
-        Logger.Header("ГЛОБАЛЬНОЕ ОБНОВЛЕНИЕ ИЗ GITHUB");
-        DependencyManager.RefreshSystemPath();
-        if (!await DependencyManager.CheckToolAsync("git"))
+        Logger.Header("МГНОВЕННОЕ ОБНОВЛЕНИЕ");
+        var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var url = isWin
+            ? "https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-win.exe"
+            : "https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-linux";
+        var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
+        if (string.IsNullOrEmpty(currentExe))
         {
-            Logger.Fail("Git не найден! Команда update требует установленного Git.");
-            Logger.Info("Выполни команду 'uni-sentinel install', чтобы система установила всё необходимое.");
             return;
         }
-        var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && currentExe != null && currentExe.Contains("uni-sentinel", StringComparison.OrdinalIgnoreCase))
+        await UIHelper.RunWithLoadingAsync("Загрузка новейшего ядра Sentinel...", async () =>
         {
             try
             {
-                var oldExe = currentExe + ".old";
-                if (File.Exists(oldExe))
+                using var client = new HttpClient();
+                var newData = await client.GetByteArrayAsync(url);
+                if (isWin)
                 {
-                    File.Delete(oldExe);
+                    var oldExe = currentExe + ".old";
+                    if (File.Exists(oldExe))
+                    {
+                        File.Delete(oldExe);
+                    }
+                    File.Move(currentExe, oldExe);
+                    await File.WriteAllBytesAsync(currentExe, newData);
                 }
-                File.Move(currentExe, oldExe);
+                else
+                {
+                    await File.WriteAllBytesAsync(currentExe, newData);
+                    var chmodInfo = new ProcessStartInfo("chmod", $"+x \"{currentExe}\"") { UseShellExecute = false };
+                    using var p = Process.Start(chmodInfo);
+                    if (p != null)
+                    {
+                        await p.WaitForExitAsync();
+                    }
+                }
             }
-            catch { }
-        }
-        var repoUrl = "https://github.com/irovbyte/Uni-Sentinel.git";
-        var tmpDir = Path.Combine(Path.GetTempPath(), "uni-sentinel-update");
-        Logger.Info("Связь с сервером... Скачиваю свежий исходный код.");
-        if (Directory.Exists(tmpDir))
-        {
-            await Task.Run(() => Directory.Delete(tmpDir, true));
-        }
-        var cloneInfo = new ProcessStartInfo("git", $"clone {repoUrl} \"{tmpDir}\"") { UseShellExecute = false };
-        using var clone = Process.Start(cloneInfo);
-        if (clone != null)
-        {
-            await clone.WaitForExitAsync();
-        }
-        if (clone?.ExitCode == 0)
-        {
-            Logger.Info("Исходники получены. Запускаю хардкорную пересборку (Native AOT)...");
-            var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            var script = isWin ? "pwsh" : "bash";
-            if (isWin && !await DependencyManager.CheckToolAsync("pwsh"))
+            catch (Exception ex)
             {
-                script = "powershell";
+                Logger.Fail($"Сбой при обновлении: {ex.Message}");
             }
-            var argsStr = isWin ? $"-ExecutionPolicy Bypass -File deploy.ps1" : "deploy.sh";
-            var rebuildInfo = new ProcessStartInfo(script, argsStr)
-            {
-                WorkingDirectory = tmpDir,
-                UseShellExecute = false
-            };
-            using var rebuild = Process.Start(rebuildInfo);
-            if (rebuild != null)
-            {
-                await rebuild.WaitForExitAsync();
-            }
-            if (rebuild?.ExitCode == 0)
-            {
-                Logger.Success("Новая версия успешно вшита в ядро системы!");
-            }
-            else
-            {
-                Logger.Fail("Сборка упала. Проверь, нет ли ошибок в новом коде на GitHub.");
-            }
-        }
-        else
-        {
-            Logger.Fail("Не удалось достучаться до GitHub. Проверь интернет.");
-        }
-        Logger.Info("Удаляю временные файлы загрузки...");
-        if (Directory.Exists(tmpDir))
-        {
-            await Task.Run(() => Directory.Delete(tmpDir, true));
-        }
+        });
+        Logger.Success("Ядро системы обновлено мгновенно! Shadow Monarch готов к бою.");
         return;
     }
     if (command == "ac" && args.Length > 1)

@@ -15,7 +15,7 @@ function Invoke-WithRetry {
             Start-Sleep -Seconds $Delay
         }
     }
-    throw "Критический сбой: сервер не ответил после $Retries попыток."
+    Write-Host "Не удалось выполнить команду, но продолжаем..." -ForegroundColor Red
 }
 
 Write-Host "`n======================================" -ForegroundColor DarkMagenta
@@ -23,7 +23,7 @@ Write-Host "  🚀 UNI-SENTINEL AUTO-INSTALLER 🚀   " -ForegroundColor Magenta
 Write-Host "======================================" -ForegroundColor DarkMagenta
 
 Write-Host "`nКакой стек технологий защищаем, Shadow Monarch?"
-Write-Host "  1) C / C++ (MinGW-w64 GCC, Clang)" -ForegroundColor Cyan
+Write-Host "  1) C / C++ (WinLibs GCC, Clang)" -ForegroundColor Cyan
 Write-Host "  2) C# / .NET (.NET 10 SDK)" -ForegroundColor Green
 Write-Host "  3) Всё и сразу (Titan Mode)" -ForegroundColor Yellow
 
@@ -34,8 +34,8 @@ if ($choice -match '1|3') {
     Write-Host "`n[+] Проверка C/C++ окружения..." -ForegroundColor Cyan
 
     if (!(Get-Command gcc -ErrorAction SilentlyContinue)) {
-        Write-Host "Скачивание MinGW-w64..." -ForegroundColor Cyan
-        Invoke-WithRetry { winget install --id GNU.MinGW-w64 -e --source winget --accept-package-agreements --accept-source-agreements }
+        Write-Host "Скачивание WinLibs GCC..." -ForegroundColor Cyan
+        Invoke-WithRetry { winget install --id WinLibs.GCC -e --source winget --accept-package-agreements --accept-source-agreements }
     }
     else { Write-Host "[OK] GCC найден. Пропуск." -ForegroundColor Green }
 
@@ -44,6 +44,12 @@ if ($choice -match '1|3') {
         Invoke-WithRetry { winget install --id LLVM.LLVM -e --source winget --accept-package-agreements --accept-source-agreements }
     }
     else { Write-Host "[OK] Clang найден. Пропуск." -ForegroundColor Green }
+    
+    if (!(Get-Command cppcheck -ErrorAction SilentlyContinue)) {
+        Write-Host "Скачивание Cppcheck..." -ForegroundColor Cyan
+        Invoke-WithRetry { winget install --id cppcheck -e --source winget --accept-package-agreements --accept-source-agreements }
+    }
+    else { Write-Host "[OK] Cppcheck найден. Пропуск." -ForegroundColor Green }
 
     Write-Host "[!] На Windows память (Valgrind) не чекается. Юзай WSL для тестов памяти!" -ForegroundColor DarkYellow
 }
@@ -63,7 +69,12 @@ $destDir = "$HOME\.uni-sentinel\bin"
 if (!(Test-Path $destDir)) { New-Item -ItemType Directory -Force -Path $destDir | Out-Null }
 
 $exePath = "$destDir\uni-sentinel.exe"
-if (Test-Path $exePath) { Remove-Item -Path $exePath -Force }
+
+if (Test-Path $exePath) { 
+    $oldPath = "$exePath.old"
+    if (Test-Path $oldPath) { Remove-Item -Path $oldPath -Force }
+    Rename-Item -Path $exePath -NewName "uni-sentinel.exe.old" -Force 
+}
 
 Write-Host "`n[⬇️] Загрузка ядра Sentinel..." -ForegroundColor Cyan
 $url = "https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-win.exe"
