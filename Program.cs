@@ -97,45 +97,67 @@ if (args.Length > 0)
     }
     if (command == "dump")
     {
-        Logger.Header("УМНАЯ ГЕНЕРАЦИЯ ДАМПА ПРОЕКТА");
-        Logger.Info("Синхронизация файловой системы (IDE Ping)...");
+        Logger.Header("TOTAL PROJECT DUMP");
         try
         {
-            var vsCodeRunning = Process.GetProcessesByName("Code").Length > 0;
-            if (vsCodeRunning)
+            if (Process.GetProcessesByName("Code").Length > 0)
             {
-                var pInfo = new ProcessStartInfo("code", "-s") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+                var pInfo = new ProcessStartInfo("code", "-s") { UseShellExecute = false, CreateNoWindow = true };
                 using var p = Process.Start(pInfo);
                 _ = p?.WaitForExit(500);
             }
-            else
-            { Thread.Sleep(300); }
         }
         catch { }
-        var solutionFile = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.slnx").FirstOrDefault() ?? Directory.GetFiles(Directory.GetCurrentDirectory(), "*.sln").FirstOrDefault();
+        var solutionFile = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.slnx").FirstOrDefault()
+                           ?? Directory.GetFiles(Directory.GetCurrentDirectory(), "*.sln").FirstOrDefault();
         var projectName = solutionFile != null ? Path.GetFileNameWithoutExtension(solutionFile) : new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
-        var outputFile = $"{projectName}_dump.txt";
+        var outputFile = $"{projectName}_total_dump.txt";
         if (File.Exists(outputFile))
-        { File.Delete(outputFile); Logger.Warning($"Старый файл '{outputFile}' стерт."); }
-        var dumpScanner = new Scanner(Directory.GetCurrentDirectory());
-        var files = dumpScanner.GetSmartDumpFiles(null);
-        await using var writer = new StreamWriter(outputFile, append: false);
-        await writer.WriteLineAsync($"=== UNI-SENTINEL SMART DUMP: {projectName} ===");
+        { File.Delete(outputFile); Logger.Warning("Предыдущий дамп стерт."); }
+        var excludeDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            "bin", "obj", ".git", ".vs", ".vscode", "node_modules", "BuildCache", ".uni-cache", ".uni-sentinel"
+        };
+        var excludeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            ".exe", ".dll", ".pdb", ".so", ".dbg", ".app", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".7z", ".rar"
+        };
+        Logger.Info("Сканирование всех файлов проекта...");
+        var allFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*", SearchOption.AllDirectories)
+            .Where(file =>
+            {
+                var relPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), file);
+                var parts = relPath.Split(Path.DirectorySeparatorChar);
+                if (parts.Any(p => excludeDirs.Contains(p)))
+                {
+                    return false;
+                }
+                if (excludeExtensions.Contains(Path.GetExtension(file)))
+                {
+                    return false;
+                }
+                return Path.GetFileName(file) != outputFile;
+            }).ToList();
+        await using var writer = new StreamWriter(outputFile, append: false, System.Text.Encoding.UTF8);
+        await writer.WriteLineAsync($"=== UNI-SENTINEL TOTAL DUMP: {projectName} ===");
         await writer.WriteLineAsync($"Date: {DateTime.Now}");
+        await writer.WriteLineAsync($"Files Count: {allFiles.Count}");
         await writer.WriteLineAsync($"Root: {Directory.GetCurrentDirectory()}\n");
-        foreach (var file in files)
+        foreach (var file in allFiles)
         {
             var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), file);
-            if (relativePath.Split(Path.DirectorySeparatorChar).Any(part => part.StartsWith('.')))
-            {
-                continue;
-            }
             await writer.WriteLineAsync($"\n========================================");
             await writer.WriteLineAsync($"FILE: {relativePath}");
             await writer.WriteLineAsync($"========================================");
-            await writer.WriteLineAsync(await File.ReadAllTextAsync(file));
+            try
+            {
+                var content = await File.ReadAllTextAsync(file);
+                await writer.WriteLineAsync(content);
+            }
+            catch (Exception ex)
+            {
+                await writer.WriteLineAsync($"[ERR] Не удалось прочитать файл: {ex.Message}");
+            }
         }
-        Logger.Success($"Свежий дамп проекта '{projectName}' успешно сохранен!");
+        Logger.Success($"Total Dump сохранен в '{outputFile}' ({allFiles.Count} файлов)!");
         return;
     }
     if (command == "update")
