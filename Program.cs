@@ -118,24 +118,21 @@ if (args.Length > 0)
             "bin", "obj", ".git", ".vs", ".vscode", "node_modules", "BuildCache", ".uni-cache", ".uni-sentinel"
         };
         var excludeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".exe", ".dll", ".pdb", ".so", ".dbg", ".app", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".7z", ".rar"
+            ".exe", ".dll", ".pdb", ".so", ".dbg", ".app", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".7z", ".svg", ".rar"
         };
         Logger.Info("Сканирование всех файлов проекта...");
         var allFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*", SearchOption.AllDirectories)
-            .Where(file =>
-            {
-                var relPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), file);
-                var parts = relPath.Split(Path.DirectorySeparatorChar);
-                if (parts.Any(p => excludeDirs.Contains(p)))
-                {
-                    return false;
-                }
-                if (excludeExtensions.Contains(Path.GetExtension(file)))
-                {
-                    return false;
-                }
-                return Path.GetFileName(file) != outputFile;
-            }).ToList();
+        .Where(file =>
+        {
+            var relPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), file);
+            var fileName = Path.GetFileName(file);
+            var parts = relPath.Split(Path.DirectorySeparatorChar);
+            if (parts.Any(p => excludeDirs.Contains(p)))
+                return false;
+            if (excludeExtensions.Contains(Path.GetExtension(file)))
+                return false;
+            return fileName != outputFile && fileName != ".gitignore";
+        }).ToList();
         await using var writer = new StreamWriter(outputFile, append: false, System.Text.Encoding.UTF8);
         await writer.WriteLineAsync($"=== UNI-SENTINEL TOTAL DUMP: {projectName} ===");
         await writer.WriteLineAsync($"Date: {DateTime.Now}");
