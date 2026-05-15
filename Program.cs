@@ -118,8 +118,13 @@ if (args.Length > 0)
             "bin", "obj", ".git", ".vs", ".vscode", "node_modules", "BuildCache", ".uni-cache", ".uni-sentinel"
         };
         var excludeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".exe", ".dll", ".pdb", ".so", ".dbg", ".app", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".7z", ".svg", ".rar"
-        };
+        ".exe", ".dll", ".pdb", ".so", ".dbg", ".app",
+        ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf",
+        ".zip", ".7z", ".rar", ".svg",
+        ".ttf", ".otf", ".woff", ".woff2",
+        ".keystore", ".jks", ".pfx", ".p12",
+        ".user", ".suo", ".sln.dotSettings"
+    };
         Logger.Info("Сканирование всех файлов проекта...");
         var allFiles = Directory.EnumerateFiles(Directory.GetCurrentDirectory(), "*.*", SearchOption.AllDirectories)
         .Where(file =>
@@ -131,7 +136,9 @@ if (args.Length > 0)
                 return false;
             if (excludeExtensions.Contains(Path.GetExtension(file)))
                 return false;
-            return fileName != outputFile && fileName != ".gitignore";
+            return fileName != outputFile &&
+                   fileName != ".gitignore" &&
+                   fileName != ".gitattributes";
         }).ToList();
         await using var writer = new StreamWriter(outputFile, append: false, System.Text.Encoding.UTF8);
         await writer.WriteLineAsync($"=== UNI-SENTINEL TOTAL DUMP: {projectName} ===");
