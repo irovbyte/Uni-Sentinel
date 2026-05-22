@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using UniSentinel.Core;
 namespace UniSentinel.Handlers.C;
+
 internal static partial class MakefileRunner
 {
     private static readonly string[] t_standardTargets = ["all", "test", "gcov_report"];

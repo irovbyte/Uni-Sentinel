@@ -1,4 +1,5 @@
 namespace UniSentinel.Handlers.CSharp;
+
 internal sealed class StyleManager(ProjectManager projectManager)
 {
     private static async Task<T> RunWithLoadingAsync<T>(string message, Func<Task<T>> task)
@@ -24,51 +25,50 @@ internal sealed class StyleManager(ProjectManager projectManager)
             Console.Write("\r" + new string(' ', 80) + "\r");
         }
     }
+
     public async Task<(bool Ok, int Points)> CheckStyleAsync()
     {
         Logger.Header("ЭТАП 1: СТИЛЬ (GLOBAL SHADOW MODE)");
         var projectDir = projectManager.GetProjectPath();
-        var localConfig = Path.Combine(projectDir, ".editorconfig");
-        var globalConfig = Path.Combine(CSharpSettings.GlobalConfigPath, ".editorconfig");
-        try
+
+        if (!File.Exists(Path.Combine(projectDir, ".gitignore")))
         {
-            if (File.Exists(globalConfig))
+            var globalGitignore = Path.Combine(CSharpSettings.GlobalConfigPath, "CSharp.gitignore");
+            if (File.Exists(globalGitignore))
             {
-                File.Copy(globalConfig, localConfig, true);
+                File.Copy(globalGitignore, Path.Combine(projectDir, ".gitignore"));
             }
-            var (resStyle, resSpace) = await RunWithLoadingAsync("Анализ кода через Sentinel Engine...", async () =>
+        }
+
+        var (resStyle, resSpace) = await RunWithLoadingAsync("Анализ кода через Sentinel Engine...", async () =>
+        {
+            var s = await projectManager.RunDotnetAsync("format style --severity error --verify-no-changes");
+            var w = await projectManager.RunDotnetAsync("format whitespace --verify-no-changes");
+            return (s, w);
+        });
+
+        if (resStyle.Code == 0 && resSpace.Code == 0)
+        {
+            Logger.Success("Стиль C# идеален!");
+            return (true, 0);
+        }
+
+        Logger.Fail("Нарушены конвенции (явные типы или скобки).");
+        Console.Write($" {Settings.Colors.LycorisAccent}Применить Shadow-Fix? [y/N]: {Settings.Colors.Reset}");
+        if (Console.ReadLine()?.Trim().ToLowerInvariant() == "y")
+        {
+            _ = await RunWithLoadingAsync("Реструктуризация проекта...", async () =>
             {
-                var s = await projectManager.RunDotnetAsync("format style --severity error --verify-no-changes");
-                var w = await projectManager.RunDotnetAsync("format whitespace --verify-no-changes");
-                return (s, w);
+                _ = await projectManager.RunDotnetAsync("format whitespace");
+                _ = await projectManager.RunDotnetAsync("format style --severity error");
+                return true;
             });
-            if (resStyle.Code == 0 && resSpace.Code == 0)
-            {
-                Logger.Success("Стиль C# идеален!");
-                return (true, 0);
-            }
-            Logger.Fail("Нарушены конвенции (явные типы или скобки).");
-            Console.Write($" {Settings.Colors.LycorisAccent}Применить Shadow-Fix? [y/N]: {Settings.Colors.Reset}");
-            if (Console.ReadLine()?.Trim().ToLowerInvariant() == "y")
-            {
-                _ = await RunWithLoadingAsync("Реструктуризация проекта...", async () =>
-                {
-                    _ = await projectManager.RunDotnetAsync("format whitespace");
-                    _ = await projectManager.RunDotnetAsync("format style --severity error");
-                    return true;
-                });
-                Logger.Success("Проект реструктуризирован.");
-            }
+            Logger.Success("Проект реструктуризирован.");
         }
-        finally
-        {
-            if (File.Exists(localConfig))
-            {
-                File.Delete(localConfig);
-            }
-        }
+
         return (true, 0);
     }
+
     public async Task<(bool Ok, int Points)> CheckStructureAsync()
     {
         Logger.Header("ЭТАП 5: АНАЛИЗАТОРЫ (ROSLYN)");
@@ -78,6 +78,7 @@ internal sealed class StyleManager(ProjectManager projectManager)
             Logger.Success("Анализаторы довольны.");
             return (true, 0);
         }
+
         Logger.Fail("Найдены структурные проблемы.");
         Console.Write($" {Settings.Colors.LycorisAccent}Исправить автоматически? [y/N]: {Settings.Colors.Reset}");
         if (Console.ReadLine()?.Trim().ToLowerInvariant() == "y")

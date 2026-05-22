@@ -14,8 +14,9 @@ echo -e "${C_TITLE}======================================${C_RESET}\n"
 echo -e "Какой стек технологий защищаем, Shadow Monarch?"
 echo -e "  1) ${C_MAIN}C / C++${C_RESET} (Make, GCC, Valgrind)"
 echo -e "  2) ${C_OK}C# / .NET${C_RESET} (.NET 10 SDK)"
-echo -e "  3) ${C_WARN}Всё и сразу${C_RESET} (Titan Mode)"
-read -p "Выбери номер [1-3]: " STACK_CHOICE </dev/tty
+echo -e "  3) ${C_TITLE}HTML / Blazor${C_RESET} (npm, prettier, xamlstyler)"
+echo -e "  4) ${C_WARN}Всё и сразу${C_RESET} (Titan Mode)"
+read -p "Выбери номер [1-4]: " STACK_CHOICE </dev/tty
 
 PM=""
 if command -v apt-get &> /dev/null; then PM="apt-get"
@@ -30,6 +31,11 @@ fi
 if [[ "$STACK_CHOICE" == "2" || "$STACK_CHOICE" == "3" ]]; then
     if ! command -v dotnet &> /dev/null || [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then
         DEPS+="dotnet-sdk-10.0 "
+    fi
+fi
+if [[ "$STACK_CHOICE" == "3" || "$STACK_CHOICE" == "4" ]]; then
+    if ! command -v npm &> /dev/null; then
+        DEPS+="npm "
     fi
 fi
 
@@ -60,6 +66,16 @@ else
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
         export PATH="$HOME/.local/bin:$PATH"
+    fi
+fi
+
+if [[ "$STACK_CHOICE" == "3" || "$STACK_CHOICE" == "4" ]]; then
+    echo -e "\n${C_TITLE}[+] Установка UI-инструментов...${C_RESET}"
+    if ! command -v xstyler &> /dev/null; then
+        dotnet tool install -g xamlstyler.console || true
+    fi
+    if ! command -v prettier &> /dev/null; then
+        sudo npm install -g prettier @prettier/plugin-xml || true
     fi
 fi
 

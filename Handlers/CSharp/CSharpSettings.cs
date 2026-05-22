@@ -1,4 +1,5 @@
 namespace UniSentinel.Handlers.CSharp;
+
 internal static class CSharpSettings
 {
     internal static string ModulePath { get; } = Path.Combine(
@@ -6,7 +7,7 @@ internal static class CSharpSettings
         ".uni-sentinel", "modules", "csharp");
     internal static string GlobalConfigPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".uni_config");
+        ".uni-sentinel", "config");
     private static string ConfigFile => Path.Combine(ModulePath, "cache_path.txt");
     public static async Task<string> GetOrAskBuildCachePathAsync()
     {

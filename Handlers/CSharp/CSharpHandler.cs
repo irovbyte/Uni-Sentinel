@@ -1,4 +1,5 @@
 namespace UniSentinel.Handlers.CSharp;
+
 internal sealed partial class CSharpHandler : BaseHandler
 {
     [GeneratedRegex(@"(@(?:""[^""]*"")+|""(?:[^""\n\\]+|\\.)*""|'(?:[^'\n\\]+|\\.)*')|//.*|/\*[\s\S]*?\*/", RegexOptions.Compiled)]
@@ -27,6 +28,15 @@ internal sealed partial class CSharpHandler : BaseHandler
     public override async Task<(bool Ok, int Points)> CheckStyleAsync()
     {
         await EnsureInitializedAsync();
+        var uiFilesCount = Files.Count(f => f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase) ||
+                                            f.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
+                                            f.EndsWith(".cshtml", StringComparison.OrdinalIgnoreCase) ||
+                                            f.EndsWith(".razor", StringComparison.OrdinalIgnoreCase));
+        if (uiFilesCount > 0)
+        {
+            var htmlHandler = new Html.HtmlHandler(ProjectPath);
+            _ = await htmlHandler.CheckUIAsync(uiFilesCount);
+        }
         return await _styleManager.CheckStyleAsync();
     }
     public override async Task<(bool Ok, int Points)> BuildAsync()

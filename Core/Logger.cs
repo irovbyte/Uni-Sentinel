@@ -1,4 +1,5 @@
 namespace UniSentinel.Core;
+
 internal static class Logger
 {
     private static readonly Random t_rnd = new();

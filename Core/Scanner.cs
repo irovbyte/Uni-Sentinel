@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using UniSentinel.Handlers.C;
 namespace UniSentinel.Core;
+
 internal sealed class Scanner(string rootPath)
 {
     private readonly string _root = Path.GetFullPath(rootPath);

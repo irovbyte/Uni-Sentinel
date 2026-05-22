@@ -1,5 +1,6 @@
 using UniSentinel.Core;
 namespace UniSentinel.Handlers.C;
+
 internal static class ValgrindAnalyzer
 {
     public static async Task<bool> CheckAsync(string rootPath, Func<string, string, string?, Task<(int Code, string Out, string Err)>> runAsync)

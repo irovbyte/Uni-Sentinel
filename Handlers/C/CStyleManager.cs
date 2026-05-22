@@ -1,5 +1,6 @@
 using UniSentinel.Core;
 namespace UniSentinel.Handlers.C;
+
 internal static class CStyleManager
 {
     private const string UltraConfig = """

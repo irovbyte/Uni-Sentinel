@@ -1,6 +1,7 @@
 using System.Globalization;
 using UniSentinel.Core;
 namespace UniSentinel.Core;
+
 internal static class ScoreManager
 {
     private static readonly string t_configDir = Path.Combine(

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 namespace UniSentinel.Core;
+
 internal static class GitHookManager
 {
     public static async Task InstallAsync(string projectPath)

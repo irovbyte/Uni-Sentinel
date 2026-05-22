@@ -1,4 +1,5 @@
 namespace UniSentinel.Handlers;
+
 internal abstract class BaseHandler(string projectPath, List<string> files)
 {
     protected string ProjectPath { get; } = projectPath;

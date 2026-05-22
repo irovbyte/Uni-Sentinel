@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using UniSentinel.Core;
 namespace UniSentinel.Handlers.C;
+
 internal static partial class CoverageAnalyzer
 {
     [GeneratedRegex(@"^\s*([#=]+|-|\d+):\s*(\d+):(.*)$")]

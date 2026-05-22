@@ -25,12 +25,13 @@ Write-Host "======================================" -ForegroundColor DarkMagenta
 Write-Host "`nКакой стек технологий защищаем, Shadow Monarch?"
 Write-Host "  1) C / C++ (WinLibs GCC, Clang)" -ForegroundColor Cyan
 Write-Host "  2) C# / .NET (.NET 10 SDK)" -ForegroundColor Green
-Write-Host "  3) Всё и сразу (Titan Mode)" -ForegroundColor Yellow
+Write-Host "  3) HTML / Blazor (XamlStyler, Prettier)" -ForegroundColor Magenta
+Write-Host "  4) Всё и сразу (Titan Mode)" -ForegroundColor Yellow
 
 $host.UI.RawUI.FlushInputBuffer()
-$choice = Read-Host "Выбери номер [1-3]"
+$choice = Read-Host "Выбери номер [1-4]"
 
-if ($choice -match '1|3') {
+if ($choice -match '1|4') {
     Write-Host "`n[+] Проверка C/C++ окружения..." -ForegroundColor Cyan
 
     if (!(Get-Command gcc -ErrorAction SilentlyContinue)) {
@@ -63,6 +64,24 @@ if ($choice -match '2|3') {
         Invoke-WithRetry { winget install --id Microsoft.DotNet.SDK.10 -e --source winget --accept-package-agreements --accept-source-agreements }
     }
     else { Write-Host "[OK] .NET 10 SDK ($dotnetVer) найден. Пропуск." -ForegroundColor Green }
+}
+
+if ($choice -match '3|4') {
+    Write-Host "`n[+] Проверка UI-инструментов (XAML/HTML)..." -ForegroundColor Magenta
+    
+    if (!(Get-Command xstyler -ErrorAction SilentlyContinue)) {
+        Write-Host "Скачивание XamlStyler..." -ForegroundColor Magenta
+        Invoke-WithRetry { dotnet tool install -g xamlstyler.console }
+    } else { Write-Host "[OK] XamlStyler найден. Пропуск." -ForegroundColor Green }
+    
+    if (!(Get-Command prettier -ErrorAction SilentlyContinue)) {
+        if (Get-Command npm -ErrorAction SilentlyContinue) {
+            Write-Host "Скачивание Prettier..." -ForegroundColor Magenta
+            Invoke-WithRetry { npm install -g prettier @prettier/plugin-xml }
+        } else {
+            Write-Host "[!] npm не найден. Установи NodeJS для форматирования HTML/Razor." -ForegroundColor DarkYellow
+        }
+    } else { Write-Host "[OK] Prettier найден. Пропуск." -ForegroundColor Green }
 }
 
 $destDir = "$HOME\.uni-sentinel\bin"

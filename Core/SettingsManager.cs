@@ -1,4 +1,5 @@
 namespace UniSentinel.Core;
+
 internal static class SettingsManager
 {
     private static readonly string t_configFile = Path.Combine(

@@ -1,86 +1,68 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
+
 namespace UniSentinel.Core;
+
 public sealed class ToolDef
 {
     public string Id { get; init; } = "";
     public string Stack { get; init; } = "";
     public string Apt { get; init; } = "";
     public string Pacman { get; init; } = "";
-    public string Winget { get; init; } = "";
+    public string WinPortableUrl { get; init; } = "";
 }
+
 [JsonSerializable(typeof(ToolDef[]))]
 internal sealed partial class AppJsonContext : JsonSerializerContext { }
+
 public static class DependencyManager
 {
     private const string RegistryUrl = "https://raw.githubusercontent.com/irovbyte/Uni-Sentinel/main/dependencies.json";
+
+    public static string ToolsDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".uni-sentinel", "tools");
+
     public static void RefreshSystemPath()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             var userPath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User);
             var machinePath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.Machine);
-            Environment.SetEnvironmentVariable("PATH", $"{userPath};{machinePath}", EnvironmentVariableTarget.Process);
-        }
-    }
-    private static void AutoFixWindowsPaths()
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return;
-        }
-        var systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
-        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var searchDirs = new List<string>
-        {
-            Path.Combine(programFiles, "LLVM", "bin"),
-            Path.Combine(programFiles, "cppcheck"),
-            Path.Combine(systemDrive, "msys64", "mingw64", "bin"),
-            Path.Combine(systemDrive, "msys64", "usr", "bin")
-        };
-        var winGetPackages = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
-        if (Directory.Exists(winGetPackages))
-        {
-            foreach (var pkgDir in Directory.GetDirectories(winGetPackages))
+
+            var localPath = string.Empty;
+            if (Directory.Exists(ToolsDir))
             {
-                if (pkgDir.Contains("WinLibs") || pkgDir.Contains("MinGW"))
+                var toolDirs = Directory.GetDirectories(ToolsDir);
+                foreach (var dir in toolDirs)
                 {
-                    searchDirs.Add(Path.Combine(pkgDir, "mingw64", "bin"));
+                    var bin = Path.Combine(dir, "bin");
+                    if (Directory.Exists(bin))
+                    {
+                        localPath += $"{bin};";
+                    }
+                    else if (dir.Contains("mingw", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var mingwBin = Path.Combine(dir, "bin");
+                        if (Directory.Exists(mingwBin))
+                        {
+                            localPath += $"{mingwBin};";
+                        }
+                    }
                 }
             }
-        }
-        var envPath = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.User) ?? "";
-        var paths = envPath.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
-        var changedPath = false;
-        foreach (var dir in searchDirs)
-        {
-            if (!Directory.Exists(dir))
-            {
-                continue;
-            }
-            var mingwMake = Path.Combine(dir, "mingw32-make.exe");
-            var make = Path.Combine(dir, "make.exe");
-            if (File.Exists(mingwMake) && !File.Exists(make))
-            {
-                try
-                { File.Copy(mingwMake, make); }
-                catch { }
-            }
-            if (!paths.Any(p => p.Equals(dir, StringComparison.OrdinalIgnoreCase)))
-            {
-                paths.Add(dir);
-                changedPath = true;
-            }
-        }
-        if (changedPath)
-        {
-            Environment.SetEnvironmentVariable("Path", string.Join(";", paths), EnvironmentVariableTarget.User);
-            RefreshSystemPath();
+
+            Environment.SetEnvironmentVariable("PATH", $"{localPath}{userPath};{machinePath}", EnvironmentVariableTarget.Process);
         }
     }
+
     public static async Task<bool> CheckToolAsync(string toolName)
     {
         var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -102,10 +84,15 @@ public static class DependencyManager
             await p.WaitForExitAsync();
             return p.ExitCode == 0;
         }
-        catch { return false; }
+        catch
+        {
+            return false;
+        }
     }
+
     public static async Task<bool> RequireStackAsync(string stackName)
     {
+        RefreshSystemPath();
         Logger.Info($"Синхронизация Cloud Registry [{stackName.ToUpper()}]...");
         ToolDef[]? tools;
         try
@@ -119,77 +106,119 @@ public static class DependencyManager
             Logger.Warning("Cloud Registry недоступен. Работаю в автономном режиме.");
             return true;
         }
+
         if (tools is null)
         {
             return true;
         }
+
         var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         var stackTools = tools.Where(t => t.Stack.Equals(stackName, StringComparison.OrdinalIgnoreCase)).ToList();
         List<ToolDef> missingTools = [];
+
         foreach (var tool in stackTools)
         {
-            if (isWin && tool.Winget == "NONE")
-            {
-                continue;
-            }
             if (!await CheckToolAsync(tool.Id))
             {
                 missingTools.Add(tool);
             }
         }
+
         if (missingTools.Count == 0)
         {
             return true;
         }
+
         Logger.Header("АВТО-ИНСТАЛЛЯТОР");
         Logger.Warning($"Missing: {Settings.Colors.Fail}{string.Join(", ", missingTools.Select(t => t.Id))}{Settings.Colors.Reset}");
+
         if (isWin)
         {
-            var wingetPackages = missingTools.Select(t => t.Winget == "GNU.MinGW-w64" ? "WinLibs.GCC" : t.Winget)
-                                             .Distinct().Where(w => w != "NONE").ToList();
-            Logger.Header("АВТО-УСТАНОВКА ЗАВИСИМОСТЕЙ");
-            foreach (var packageId in wingetPackages)
+            Logger.Header("СКАЧИВАНИЕ ПОРТАТИВНЫХ ВЕРСИЙ (WINDOWS)");
+            _ = Directory.CreateDirectory(ToolsDir);
+
+            foreach (var tool in missingTools)
             {
-                await UIHelper.RunWithLoadingAsync($"Установка {packageId}...", async () =>
+                var url = tool.WinPortableUrl;
+                if (string.IsNullOrEmpty(url))
                 {
-                    var psi = new ProcessStartInfo("winget")
+                    url = tool.Id switch
                     {
-                        Arguments = $"install --id {packageId} --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity",
-                        UseShellExecute = true,
-                        Verb = "runas",
-                        WindowStyle = ProcessWindowStyle.Hidden
+                        "gcc" or "g++" or "make" => "https://github.com/brechtsanders/winlibs_mingw/releases/download/13.2.0-11.0.1-msvcrt-r5/winlibs-x86_64-posix-seh-gcc-13.2.0-mingw-w64msvcrt-11.0.1-r5.zip",
+                        "clang-format" or "clang" => "https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-win64.exe",
+                        _ => null
                     };
+
+                    if (url is null)
+                    {
+                        continue;
+                    }
+                }
+
+                await UIHelper.RunWithLoadingAsync($"Скачивание портативного инструмента: {tool.Id}...", async () =>
+                {
                     try
                     {
-                        using var p = Process.Start(psi);
-                        if (p != null)
+                        var tempZip = Path.Combine(Path.GetTempPath(), $"{tool.Id}_portable.zip");
+                        using var client = new HttpClient();
+                        var data = await client.GetByteArrayAsync(url);
+                        await File.WriteAllBytesAsync(tempZip, data);
+
+                        var extractPath = Path.Combine(ToolsDir, tool.Id);
+                        if (Directory.Exists(extractPath))
                         {
-                            await p.WaitForExitAsync();
+                            Directory.Delete(extractPath, true);
+
                         }
+                        if (url.EndsWith(".zip"))
+                        {
+                            ZipFile.ExtractToDirectory(tempZip, extractPath);
+                        }
+
+                        File.Delete(tempZip);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Logger.Fail($"Не удалось установить {tool.Id}: {ex.Message}");
+                    }
                 });
             }
-            AutoFixWindowsPaths();
+
             RefreshSystemPath();
-            Logger.Success("Окружение обновлено. Проверка арсенала...");
-            if ((await Task.WhenAll(stackTools.Select(t => CheckToolAsync(t.Id)))).All(result => result))
+
+            try
             {
-                return true;
+                var makeFiles = Directory.GetFiles(ToolsDir, "mingw32-make.exe", SearchOption.AllDirectories);
+                foreach (var mf in makeFiles)
+                {
+                    var makeDest = Path.Combine(Path.GetDirectoryName(mf)!, "make.exe");
+                    if (!File.Exists(makeDest))
+                    {
+                        File.Copy(mf, makeDest);
+                    }
+                }
             }
-            Logger.Info("Требуется перезапуск терминала для полной активации путей.");
-            return false;
+            catch { }
+
+            Logger.Success("Окружение обновлено. Проверка арсенала...");
+
+
+            return (await Task.WhenAll(stackTools.Select(t => CheckToolAsync(t.Id)))).All(result => result);
+
         }
+
         var (_, manager) = GetDistroInfo();
         if (string.IsNullOrEmpty(manager))
         {
             return false;
         }
+
         Console.Write($" {Settings.Colors.LycorisAccent}Установить через {manager}? [y/N]: {Settings.Colors.Reset}");
         if (Console.ReadLine()?.Trim().ToLowerInvariant() != "y")
         {
             return false;
         }
+
         var pkgList = missingTools.Select(t => manager == "pacman" ? t.Pacman : t.Apt).Distinct();
         var installArgs = manager switch
         {
@@ -198,13 +227,16 @@ public static class DependencyManager
             "dnf" => $"install -y {string.Join(" ", pkgList)}",
             _ => ""
         };
+
         var proc = Process.Start(new ProcessStartInfo("sudo", $"{manager} {installArgs}") { UseShellExecute = false });
         if (proc is not null)
         {
             await proc.WaitForExitAsync();
         }
+
         return proc?.ExitCode == 0;
     }
+
     private static (string Name, string Manager) GetDistroInfo()
     {
         if (!File.Exists("/etc/os-release"))
@@ -221,31 +253,5 @@ public static class DependencyManager
             _ => "dnf"
         };
         return ("Linux", manager);
-    }
-}
-public static class UIHelper
-{
-    public static async Task RunWithLoadingAsync(string message, Func<Task> task)
-    {
-        var spinner = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
-        var counter = 0;
-        using var cts = new CancellationTokenSource();
-        var loadingTask = Task.Run(async () =>
-        {
-            while (!cts.IsCancellationRequested)
-            {
-                Console.Write($"\r {Settings.Colors.AwakeAccent}{spinner[counter % spinner.Length]}{Settings.Colors.Reset} {message} ");
-                counter++;
-                await Task.Delay(100);
-            }
-        });
-        try
-        { await task(); }
-        finally
-        {
-            cts.Cancel();
-            await loadingTask;
-            Console.Write("\r" + new string(' ', 80) + "\r");
-        }
     }
 }
