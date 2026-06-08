@@ -15,7 +15,45 @@ internal static partial class MakefileRunner
         var activeDirs = new List<string>();
         if (makefiles.Length == 0)
         {
-            Logger.Info("Makefile отсутствует. Сборка пропущена.");
+            Logger.Warning("Makefile отсутствует! Запуск Piscine Mode (авто-компиляция)...");
+            var cFiles = Directory.GetFiles(rootPath, "*.c", SearchOption.AllDirectories)
+                .Where(f => !f.Contains("test") && !f.Contains("check"))
+                .ToList();
+            if (cFiles.Count > 0)
+            {
+                Console.WriteLine($"   {Settings.Colors.Gray}├─ Выполнение: gcc -Wall -Werror -Wextra *.c...{Settings.Colors.Reset}");
+                var startTimestamp = Stopwatch.GetTimestamp();
+                var info = new ProcessStartInfo("gcc", $"-Wall -Werror -Wextra {string.Join(" ", cFiles.Select(c => $"\"{c}\""))} -o uni_piscine_out")
+                {
+                    WorkingDirectory = rootPath,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var p = Process.Start(info);
+                if (p != null)
+                {
+                    var err = await p.StandardError.ReadToEndAsync();
+                    await p.WaitForExitAsync();
+                    var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+                    if (p.ExitCode != 0)
+                    {
+                        Console.WriteLine($"   {Settings.Colors.Fail}└─ [ERR] Ошибка при авто-компиляции!{Settings.Colors.Reset}");
+                        var errorLines = err.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(3);
+                        foreach (var el in errorLines)
+                        {
+                            Console.WriteLine($"      {Settings.Colors.Gray}{el.Trim()}{Settings.Colors.Reset}");
+                        }
+                        return (false, activeDirs);
+                    }
+                    Console.WriteLine($"   {Settings.Colors.Success}└─ [OK] Завершено ({elapsed.TotalMilliseconds:F0} ms){Settings.Colors.Reset}");
+                }
+            }
+            else
+            {
+                Logger.Info("Нет .c файлов для компиляции.");
+            }
             return (true, activeDirs);
         }
         var allOk = true;
@@ -27,7 +65,21 @@ internal static partial class MakefileRunner
             var targets = TargetRegex().Matches(content)
                  .Select(m => m.Groups[1].Value)
                  .ToHashSet();
-            var queue = t_standardTargets.Where(targets.Contains);
+                 
+            var queue = new List<string>();
+            if (targets.Contains("all")) queue.Add("all");
+            else
+            {
+                var lib = targets.FirstOrDefault(t => t.EndsWith(".a"));
+                if (lib != null) queue.Add(lib);
+            }
+            
+            var testTarget = targets.FirstOrDefault(t => t == "test" || t == "tests" || t == "check");
+            if (testTarget != null) queue.Add(testTarget);
+            
+            var covTarget = targets.FirstOrDefault(t => t == "gcov_report" || t == "coverage" || t == "gcov");
+            if (covTarget != null) queue.Add(covTarget);
+
             foreach (var target in queue)
             {
                 Console.WriteLine($"   {Settings.Colors.Gray}├─ Выполнение: make {target}...{Settings.Colors.Reset}");

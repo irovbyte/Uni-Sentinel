@@ -48,23 +48,46 @@ internal static partial class CoverageAnalyzer
         foreach (var file in gcovFiles)
         {
             var lines = await File.ReadAllLinesAsync(file);
-            var uncovered = lines
-                .Select(line => GcovLineRegex().Match(line))
-                .Where(m => m.Success && (m.Groups[1].Value.Contains('#') || m.Groups[1].Value.Contains('=')))
-                .Select(m =>
+            int totalExecutable = 0;
+            int executed = 0;
+            var uncovered = new List<string>();
+
+            foreach (var line in lines)
+            {
+                var m = GcovLineRegex().Match(line);
+                if (!m.Success) continue;
+                
+                var countStr = m.Groups[1].Value.Trim();
+                if (countStr == "-") continue;
+                
+                totalExecutable++;
+                if (countStr == "#####" || countStr.Contains("====="))
                 {
-                    var type = m.Groups[1].Value.Contains('#') ? "[LINE]" : "[BRCH]";
-                    return $"  {Settings.Colors.Warning}{type} {m.Groups[2].Value,4} |{Settings.Colors.Reset} {m.Groups[3].Value.Trim()}";
-                })
-                .ToList();
+                    var type = countStr.Contains('#') ? "[LINE]" : "[BRCH]";
+                    uncovered.Add($"  {Settings.Colors.Warning}{type} {m.Groups[2].Value,4} |{Settings.Colors.Reset} {m.Groups[3].Value.Trim()}");
+                }
+                else
+                {
+                    executed++;
+                }
+            }
+            
+            double percent = totalExecutable == 0 ? 100.0 : (executed * 100.0 / totalExecutable);
+            var percentStr = $"{percent:0.00}%";
+            var color = percent == 100.0 ? Settings.Colors.Success : (percent >= 80.0 ? Settings.Colors.Warning : Settings.Colors.Fail);
+
             if (uncovered.Count > 0)
             {
                 allCovered = false;
-                Console.WriteLine($"\n {Settings.Colors.Fail}[GCOV]{Settings.Colors.Reset} Файл: {Settings.Colors.LycorisAccent}{Path.GetFileNameWithoutExtension(file)}{Settings.Colors.Reset}");
-                foreach (var line in uncovered)
+                Console.WriteLine($"\n {color}[{percentStr,7}]{Settings.Colors.Reset} Файл: {Settings.Colors.LycorisAccent}{Path.GetFileNameWithoutExtension(file)}{Settings.Colors.Reset}");
+                foreach (var uLine in uncovered)
                 {
-                    Console.WriteLine(line);
+                    Console.WriteLine(uLine);
                 }
+            }
+            else
+            {
+                Console.WriteLine($" {color}[{percentStr,7}]{Settings.Colors.Reset} Файл: {Path.GetFileNameWithoutExtension(file)}");
             }
         }
         if (allCovered && gcovFiles.Length > 0)
