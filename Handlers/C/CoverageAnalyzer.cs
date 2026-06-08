@@ -16,6 +16,16 @@ internal static partial class CoverageAnalyzer
         var cacheDir = Path.Combine(rootPath, ".uni-cache", "gcov");
         _ = Directory.CreateDirectory(cacheDir);
         var gcnoFiles = Directory.GetFiles(rootPath, "*.gcno", SearchOption.AllDirectories);
+        if (gcnoFiles.Length == 0)
+        {
+            if (Directory.Exists(Path.Combine(rootPath, "report")) || Directory.GetFiles(rootPath, "*.info", SearchOption.AllDirectories).Length > 0)
+            {
+                Logger.Success("Исходные .gcno удалены (вероятно Makefile'ом), но найден готовый HTML/LCOV отчет!");
+                return true;
+            }
+            Logger.Info("Файлы покрытия (.gcno) не найдены. Если Makefile их удаляет, проверь HTML-отчет вручную.");
+            return true;
+        }
         foreach (var file in gcnoFiles)
         {
             var dir = Path.GetDirectoryName(file);

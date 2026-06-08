@@ -148,6 +148,10 @@ internal sealed partial class CHandler(string projectPath, List<string> files) :
                 { Logger.Fail($"[{Path.GetFileName(f)}:{index}] Глубина вложенности > 4!"); allOk = false; }
             }
         }
+        if (allOk)
+        {
+            Logger.Success("Структура идеальна (вложенность и размер функций в норме).");
+        }
         return (allOk, 0);
     }
     public override async Task<bool> StripCommentsAsync()
