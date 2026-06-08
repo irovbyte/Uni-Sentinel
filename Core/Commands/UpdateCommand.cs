@@ -52,6 +52,10 @@ public sealed class UpdateCommand : ICommand
                 }
                 else
                 {
+                    if (File.Exists(currentExe))
+                    {
+                        File.Delete(currentExe);
+                    }
                     await File.WriteAllBytesAsync(currentExe, newData);
                     var chmodInfo = new ProcessStartInfo("chmod", $"+x \"{currentExe}\"") { UseShellExecute = false };
                     using var p = Process.Start(chmodInfo);
@@ -60,6 +64,19 @@ public sealed class UpdateCommand : ICommand
                         await p.WaitForExitAsync();
                     }
                 }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Logger.Fail($"Нет прав на запись в {currentExe}.");
+                if (isWin)
+                {
+                    Logger.Warning("Запусти PowerShell/Терминал от имени Администратора и попробуй снова.");
+                }
+                else
+                {
+                    Logger.Warning("Попробуй запустить обновление через sudo: sudo uni-sentinel update");
+                }
+                Environment.Exit(1);
             }
             catch (Exception ex)
             {
