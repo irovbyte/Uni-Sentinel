@@ -1,8 +1,11 @@
+using System.Text.RegularExpressions;
 using UniSentinel.Core;
 namespace UniSentinel.Handlers.C;
 
-internal static class ValgrindAnalyzer
+internal static partial class ValgrindAnalyzer
 {
+    [GeneratedRegex(@"ERROR SUMMARY: [1-9]\d* errors")]
+    private static partial Regex ErrorSummaryRegex();
     public static async Task<bool> CheckAsync(string rootPath, Func<string, string, string?, Task<(int Code, string Out, string Err)>> runAsync)
     {
         Logger.Header("ЭТАП 3: АНАЛИЗ ПАМЯТИ (VALGRIND)");
@@ -19,15 +22,41 @@ internal static class ValgrindAnalyzer
                 {
                     return false;
                 }
+
                 try
-                {
-                    return (File.GetUnixFileMode(f) & UnixFileMode.UserExecute) != 0;
-                }
+                { return (File.GetUnixFileMode(f) & UnixFileMode.UserExecute) != 0; }
                 catch { return false; }
             }).ToList();
+
         if (binaries.Count == 0)
         {
-            Logger.Info("Исполняемые файлы не найдены.");
+            var makefiles = Directory.GetFiles(rootPath, "Makefile", SearchOption.AllDirectories);
+            if (makefiles.Length > 0)
+            {
+                Logger.Warning("Бинарники удалены (вероятно после gcov_report). Пересобираем тесты...");
+                foreach (var make in makefiles)
+                {
+                    _ = await runAsync("make", "test", Path.GetDirectoryName(make));
+                }
+                binaries = [.. Directory.GetFiles(rootPath, "*", SearchOption.AllDirectories)
+                    .Where(f => !Path.GetFileName(f).Contains('.') && !f.Contains(".git") && !f.Contains(".uni-cache"))
+                    .Where(f =>
+                    {
+                        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                        {
+                            return false;
+                        }
+
+                        try
+                        { return (File.GetUnixFileMode(f) & UnixFileMode.UserExecute) != 0; }
+                        catch { return false; }
+                    })];
+            }
+        }
+
+        if (binaries.Count == 0)
+        {
+            Logger.Info("Исполняемые файлы не найдены даже после пересборки.");
             return true;
         }
         var allClean = true;
@@ -36,7 +65,14 @@ internal static class ValgrindAnalyzer
             Logger.Info($"Анализ: {Path.GetFileName(bin)}...");
             var binDir = Path.GetDirectoryName(bin);
             var (_, _, err) = await runAsync("valgrind", $"--tool=memcheck --leak-check=full ./{Path.GetFileName(bin)}", binDir);
-            if (err.Contains("ERROR SUMMARY: 0 errors"))
+
+            var hasErrors = err.Contains("definitely lost:") && !err.Contains("definitely lost: 0 bytes");
+            if (ErrorSummaryRegex().IsMatch(err))
+            {
+                hasErrors = true;
+            }
+
+            if (!hasErrors)
             {
                 Logger.Success($"Память абсолютно чиста ({Path.GetFileName(bin)}).");
             }

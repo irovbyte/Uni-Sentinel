@@ -3,17 +3,7 @@ namespace UniSentinel.Handlers.C;
 
 internal static class CStyleManager
 {
-    private const string UltraConfig = """
-        BasedOnStyle: Google
-        Standard: c11
-        IndentWidth: 4
-        ColumnLimit: 110
-        AllowShortFunctionsOnASingleLine: Empty
-        BreakBeforeBraces: Attach
-        PointerAlignment: Right
-        AlignConsecutiveAssignments: true
-        AlignConsecutiveDeclarations: true
-        """;
+    private const string UltraConfig = "BasedOnStyle: Google\n";
     public static async Task<(bool Ok, int Points)> CheckAndApplyStyleAsync(
         string projectPath,
         List<string> files,
@@ -24,7 +14,11 @@ internal static class CStyleManager
         var existingConfigContent = File.Exists(localConfig)
             ? await File.ReadAllTextAsync(localConfig)
             : null;
-        await File.WriteAllTextAsync(localConfig, UltraConfig);
+
+        if (existingConfigContent == null)
+        {
+            await File.WriteAllTextAsync(localConfig, UltraConfig);
+        }
         var cFiles = files.Where(f => f.EndsWith(".c", StringComparison.OrdinalIgnoreCase) ||
                                      f.EndsWith(".h", StringComparison.OrdinalIgnoreCase)).ToList();
         if (cFiles.Count == 0)

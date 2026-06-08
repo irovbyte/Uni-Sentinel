@@ -18,7 +18,20 @@ internal static partial class CoverageAnalyzer
         var gcnoFiles = Directory.GetFiles(rootPath, "*.gcno", SearchOption.AllDirectories);
         foreach (var file in gcnoFiles)
         {
-            _ = await runAsync("gcov", $"\"{file}\"", cacheDir);
+            var dir = Path.GetDirectoryName(file);
+            _ = await runAsync("gcov", $"\"{Path.GetFileName(file)}\"", dir);
+
+            var generatedGcovs = Directory.GetFiles(dir!, "*.gcov");
+            foreach (var gcovFile in generatedGcovs)
+            {
+                var dest = Path.Combine(cacheDir, Path.GetFileName(gcovFile));
+                if (File.Exists(dest))
+                {
+                    File.Delete(dest);
+                }
+
+                File.Move(gcovFile, dest);
+            }
         }
         var gcovFiles = Directory.GetFiles(cacheDir, "*.gcov");
         var allCovered = true;

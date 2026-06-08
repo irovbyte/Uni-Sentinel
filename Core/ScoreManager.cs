@@ -6,14 +6,16 @@ internal static class ScoreManager
 {
     private static readonly string t_configDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".uni_config");
+        ".uni-sentinel", "config");
     private static readonly string t_scoreFile = Path.Combine(t_configDir, "score.txt");
     private static readonly string t_streakFile = Path.Combine(t_configDir, "streak.txt");
+    private static double _currentMultiplier = 1.0;
+
     public static int LoadScore() =>
         Directory.CreateDirectory(t_configDir) is not null && File.Exists(t_scoreFile) &&
         int.TryParse(File.ReadAllText(t_scoreFile), out var s) ? s : 0;
     public static void AddPoints(int points) =>
-        File.WriteAllText(t_scoreFile, (LoadScore() + points).ToString(CultureInfo.InvariantCulture));
+        File.WriteAllText(t_scoreFile, (LoadScore() + (int)Math.Ceiling(points * _currentMultiplier)).ToString(CultureInfo.InvariantCulture));
     public static void UpdateStreak()
     {
         _ = Directory.CreateDirectory(t_configDir);
@@ -29,6 +31,7 @@ internal static class ScoreManager
             if (diff == 1)
             {
                 Logger.Warning("STREAK! Ты в огне! Множитель XP x1.5 активен.");
+                _currentMultiplier = 1.5;
             }
             else if (diff > 1)
             {

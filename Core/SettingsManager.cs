@@ -4,7 +4,7 @@ internal static class SettingsManager
 {
     private static readonly string t_configFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".uni_config",
+        ".uni-sentinel", "config",
         "anti-cheat.cfg"
     );
     public static bool IsAntiCheatEnabled() =>

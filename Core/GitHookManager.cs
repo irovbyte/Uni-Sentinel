@@ -25,9 +25,13 @@ internal static class GitHookManager
                     CreateNoWindow = true,
                     UseShellExecute = false
                 };
+                //ghbdtnb
+
                 using var p = Process.Start(startInfo);
                 if (p is not null)
                 {
+
+
                     await p.WaitForExitAsync();
                 }
             }
