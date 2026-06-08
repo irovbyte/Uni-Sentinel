@@ -6,6 +6,9 @@ internal static partial class CoverageAnalyzer
 {
     [GeneratedRegex(@"^\s*([#=]+|-|\d+):\s*(\d+):(.*)$")]
     private static partial Regex GcovLineRegex();
+    
+    [GeneratedRegex(@"^\s*(-?rm\s+.*?)$", RegexOptions.Multiline)]
+    private static partial Regex RmCommandRegex();
     public static async Task<bool> AnalyzeAsync(string rootPath, Func<string, string, string?, Task<(int Code, string Out, string Err)>> runAsync)
     {
         Logger.Header("ЭТАП 4: АНАЛИЗ ПОКРЫТИЯ (SHADOW GCOV)");
@@ -18,13 +21,41 @@ internal static partial class CoverageAnalyzer
         var gcnoFiles = Directory.GetFiles(rootPath, "*.gcno", SearchOption.AllDirectories);
         if (gcnoFiles.Length == 0)
         {
-            if (Directory.Exists(Path.Combine(rootPath, "report")) || Directory.GetFiles(rootPath, "*.info", SearchOption.AllDirectories).Length > 0)
+            var makefiles = Directory.GetFiles(rootPath, "Makefile", SearchOption.AllDirectories);
+            var shadowBuilt = false;
+            foreach (var make in makefiles)
             {
-                Logger.Success("Исходные .gcno удалены (вероятно Makefile'ом), но найден готовый HTML/LCOV отчет!");
+                var content = await File.ReadAllTextAsync(make);
+                if (content.Contains("gcov_report") || content.Contains("coverage"))
+                {
+                    Logger.Warning("Файлы покрытия не найдены. Запуск теневой сборки (Shadow Build)...");
+                    var shadowContent = RmCommandRegex().Replace(content, "\t@echo \"[Shadow] rm blocked: $$1\"");
+                    var dir = Path.GetDirectoryName(make)!;
+                    var shadowFile = Path.Combine(dir, "Makefile.shadow");
+                    await File.WriteAllTextAsync(shadowFile, shadowContent);
+                    
+                    var target = content.Contains("gcov_report") ? "gcov_report" : "coverage";
+                    await runAsync("make", $"-f Makefile.shadow {target}", dir);
+                    if (File.Exists(shadowFile)) File.Delete(shadowFile);
+                    shadowBuilt = true;
+                }
+            }
+            
+            if (shadowBuilt)
+            {
+                gcnoFiles = Directory.GetFiles(rootPath, "*.gcno", SearchOption.AllDirectories);
+            }
+
+            if (gcnoFiles.Length == 0)
+            {
+                if (Directory.Exists(Path.Combine(rootPath, "report")) || Directory.GetFiles(rootPath, "*.info", SearchOption.AllDirectories).Length > 0)
+                {
+                    Logger.Success("Исходные .gcno удалены, но найден готовый HTML/LCOV отчет!");
+                    return true;
+                }
+                Logger.Info("Файлы покрытия (.gcno) не найдены даже после теневой сборки.");
                 return true;
             }
-            Logger.Info("Файлы покрытия (.gcno) не найдены. Если Makefile их удаляет, проверь HTML-отчет вручную.");
-            return true;
         }
         foreach (var file in gcnoFiles)
         {
