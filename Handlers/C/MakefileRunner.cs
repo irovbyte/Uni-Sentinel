@@ -8,6 +8,9 @@ internal static partial class MakefileRunner
     private static readonly string[] t_standardTargets = ["all", "test", "gcov_report"];
     [GeneratedRegex(@"^([a-zA-Z0-9_-]+):", RegexOptions.Multiline)]
     private static partial Regex TargetRegex();
+    
+    [GeneratedRegex(@"^\s*(-?rm\s+.*?)$", RegexOptions.Multiline)]
+    private static partial Regex RmCommandRegex();
     public static async Task<(bool Ok, List<string> Dirs)> RunSequenceAsync(string rootPath)
     {
         Logger.Header("ЭТАП 2: УМНАЯ СБОРКА ПРОЕКТА");
@@ -80,11 +83,16 @@ internal static partial class MakefileRunner
             var covTarget = targets.FirstOrDefault(t => t == "gcov_report" || t == "coverage" || t == "gcov");
             if (covTarget != null) queue.Add(covTarget);
 
+            // Create Shadow Makefile to prevent deletion during Phase 2
+            var shadowContent = RmCommandRegex().Replace(content, "\t@echo \"[Shadow] rm blocked: $$1\"");
+            var shadowFile = Path.Combine(dir, "Makefile.shadow");
+            await File.WriteAllTextAsync(shadowFile, shadowContent);
+
             foreach (var target in queue)
             {
                 Console.WriteLine($"   {Settings.Colors.Gray}├─ Выполнение: make {target}...{Settings.Colors.Reset}");
                 var startTimestamp = Stopwatch.GetTimestamp();
-                var info = new ProcessStartInfo("make", target)
+                var info = new ProcessStartInfo("make", $"-f Makefile.shadow {target}")
                 {
                     WorkingDirectory = dir,
                     RedirectStandardOutput = true,
@@ -115,6 +123,7 @@ internal static partial class MakefileRunner
                 }
                 Console.WriteLine($"   {Settings.Colors.Success}└─ [OK] Завершено ({elapsed.TotalMilliseconds:F0} ms){Settings.Colors.Reset}");
             }
+            if (File.Exists(shadowFile)) File.Delete(shadowFile);
         }
         return (allOk, activeDirs);
     }
