@@ -6,20 +6,32 @@ internal sealed partial class CSharpHandler : BaseHandler
     private static partial Regex CommentsRegex();
     [GeneratedRegex(@"^\s+$[\r\n]*", RegexOptions.Multiline)]
     private static partial Regex EmptyLinesRegex();
-    private readonly ProjectManager _projectManager;
-    private readonly StyleManager _styleManager;
+    private ProjectManager? _projectManager;
+    private StyleManager? _styleManager;
     private bool _isInitialized;
-    public CSharpHandler(string p, List<string> f) : base(p, f)
+    public override string Name => "C# / .NET";
+
+    public override bool CanHandle(List<string> files)
     {
+        return files.Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                              f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                              f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase)) ||
+               files.Any(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public override void Initialize(string projectPath, List<string> files)
+    {
+        base.Initialize(projectPath, files);
         var projectFile = Files.FirstOrDefault(x => x.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
                            ?? Files.FirstOrDefault(x => x.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+
         _projectManager = new ProjectManager(ProjectPath, projectFile ??
             throw new FileNotFoundException("Файл .csproj, .slnx или .sln не найден."));
         _styleManager = new StyleManager(_projectManager);
     }
     private async Task EnsureInitializedAsync()
     {
-        if (!_isInitialized)
+        if (!_isInitialized && _projectManager != null)
         {
             await _projectManager.InitializeAsync();
             _isInitialized = true;
@@ -37,22 +49,22 @@ internal sealed partial class CSharpHandler : BaseHandler
             var htmlHandler = new Html.HtmlHandler(ProjectPath);
             _ = await htmlHandler.CheckUIAsync(uiFilesCount);
         }
-        return await _styleManager.CheckStyleAsync();
+        return await _styleManager!.CheckStyleAsync();
     }
     public override async Task<(bool Ok, int Points)> BuildAsync()
     {
         await EnsureInitializedAsync();
-        return await _projectManager.BuildAsync();
+        return await _projectManager!.BuildAsync();
     }
     public override async Task<(bool Ok, int Points)> CheckMemoryAsync()
     {
         await EnsureInitializedAsync();
-        return await _projectManager.CheckMemoryAsync();
+        return await _projectManager!.CheckMemoryAsync();
     }
     public override async Task<(bool Ok, int Points)> CheckStructureAsync()
     {
         await EnsureInitializedAsync();
-        return await _styleManager.CheckStructureAsync();
+        return await _styleManager!.CheckStructureAsync();
     }
     public override async Task<bool> CheckDependenciesAsync()
     {
@@ -101,6 +113,6 @@ internal sealed partial class CSharpHandler : BaseHandler
     public override async Task<bool> CleanupAsync()
     {
         await EnsureInitializedAsync();
-        return await _projectManager.CleanupAsync();
+        return await _projectManager!.CleanupAsync();
     }
 }

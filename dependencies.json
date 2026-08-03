@@ -1,51 +1,8 @@
-﻿[
-  {
-    "Id": "make",
-    "Stack": "c",
-    "Apt": "make",
-    "Pacman": "make",
-    "Winget": "WinLibs.GCC"
-  },
-  {
-    "Id": "gcc",
-    "Stack": "c",
-    "Apt": "build-essential",
-    "Pacman": "gcc",
-    "Winget": "WinLibs.GCC"
-  },
-  {
-    "Id": "clang-format",
-    "Stack": "c",
-    "Apt": "clang-format",
-    "Pacman": "clang",
-    "Winget": "LLVM.LLVM"
-  },
-  {
-    "Id": "cppcheck",
-    "Stack": "c",
-    "Apt": "cppcheck",
-    "Pacman": "cppcheck",
-    "Winget": "cppcheck"
-  },
-  {
-    "Id": "valgrind",
-    "Stack": "c",
-    "Apt": "valgrind",
-    "Pacman": "valgrind",
-    "Winget": "NONE"
-  },
-  {
-    "Id": "gcov",
-    "Stack": "c",
-    "Apt": "gcovr",
-    "Pacman": "gcc",
-    "Winget": "NONE"
-  },
+[
   {
     "Id": "dotnet",
     "Stack": "csharp",
     "Apt": "dotnet-sdk-10.0",
-    "Pacman": "dotnet-sdk",
-    "Winget": "Microsoft.DotNet.SDK.10"
+    "Pacman": "dotnet-sdk"
   }
 ]

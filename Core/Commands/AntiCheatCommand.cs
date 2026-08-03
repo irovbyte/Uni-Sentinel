@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 namespace UniSentinel.Core.Commands;
 
 public sealed class AntiCheatCommand : ICommand

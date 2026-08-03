@@ -1,23 +1,32 @@
+using Spectre.Console;
+
 namespace UniSentinel.Core;
 
 internal static class Logger
 {
     private static readonly Random t_rnd = new();
     private static readonly char[] t_noise = ['!', '@', '#', '$', '%', '^', '&', '*', '?', 'X', 'Z', '0', '1', '░', '▒', '▓'];
+
     public static void Header(string m)
     {
-        var (_, mainColor, accentColor, prefix, suffix) = ScoreManager.GetRankInfo();
-        Console.WriteLine($"\n{Settings.Colors.Bold}{accentColor}{prefix} {mainColor}{m.ToUpperInvariant()} {accentColor}{suffix}{Settings.Colors.Reset}");
+        var rule = new Rule($"[bold yellow]{m.ToUpperInvariant()}[/]")
+        {
+            Justification = Justify.Left
+        };
+        AnsiConsole.Write(rule);
     }
-    public static void Success(string m) => Console.WriteLine($" {Settings.Colors.Success}[OK]{Settings.Colors.Reset} {m}");
-    public static void Fail(string m) => Console.WriteLine($" {Settings.Colors.Fail}[ERR]{Settings.Colors.Reset} {m}");
-    public static void Warning(string m) => Console.WriteLine($" {Settings.Colors.Warning}[!]{Settings.Colors.Reset} {m}");
+
+    public static void Success(string m) => AnsiConsole.MarkupLine($"[bold green][OK][/] {m}");
+    public static void Fail(string m) => AnsiConsole.MarkupLine($"[bold red][ERR][/] {m}");
+    public static void Warning(string m) => AnsiConsole.MarkupLine($"[bold yellow][!][/] {m}");
+
     public static void Info(string m)
     {
-        Console.Write($" {Settings.Colors.Gray}[...]{Settings.Colors.Reset} ");
+        AnsiConsole.Markup($"[grey][...][/] ");
         TypeEffect(m);
         Console.WriteLine();
     }
+
     private static void TypeEffect(string text)
     {
         foreach (var c in text)

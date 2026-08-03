@@ -1,15 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Threading.Tasks;
-using UniSentinel.Config;
+using UniSentinel.Core.Config;
 
 namespace UniSentinel.Core.Commands;
 
-public sealed class DumpCommand : ICommand
+public sealed class DumpCommand(IAppEnvironment env) : ICommand
 {
     public string Name => "dump";
     public string Description => "Сгенерировать умный дамп кода (.txt) для LLM с поддержкой списков исключений";
@@ -56,7 +49,7 @@ public sealed class DumpCommand : ICommand
             ".user", ".suo", ".sln.dotSettings"
         };
 
-        var globalConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".uni-sentinel", "config", "dump_blacklist.json");
+        var globalConfigPath = Path.Combine(env.ConfigDir, "dump_blacklist.json");
         LoadDumpConfig(globalConfigPath, excludeDirs, excludeExtensions);
 
         var localConfigPath = Path.Combine(currentDir, ".uni-sentinel_dump.json");

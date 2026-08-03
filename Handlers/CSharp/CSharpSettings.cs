@@ -20,9 +20,7 @@ internal static class CSharpSettings
                 return savedPath;
             }
         }
-        var defaultPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? @"C:\BuildCache"
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "uni-sentinel-build");
+        var defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache", "uni-sentinel-build");
         Console.WriteLine($"\n{Settings.Colors.LycorisAccent}[INIT]{Settings.Colors.Reset} Настройка окружения C#...");
         Console.Write($"Путь для кэша сборки (bin/obj) [Default: {defaultPath}]: ");
         var input = Console.ReadLine()?.Trim();

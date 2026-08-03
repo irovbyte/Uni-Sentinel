@@ -1,10 +1,6 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-
 namespace UniSentinel.Core.Commands;
 
-public sealed class RunAuditCommand : ICommand
+public sealed class RunAuditCommand(IScanner scanner) : ICommand
 {
     public string Name => "audit";
     public string Description => "Запустить проверку проекта (команда по умолчанию)";
@@ -14,7 +10,7 @@ public sealed class RunAuditCommand : ICommand
         ScoreManager.PrintRankBanner();
         ScoreManager.UpdateStreak();
 
-        var scanner = new Scanner(Directory.GetCurrentDirectory());
+        scanner.Initialize(Directory.GetCurrentDirectory());
         var handler = scanner.DetectHandler();
 
         if (handler == null)

@@ -1,10 +1,3 @@
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-
 namespace UniSentinel.Core.Commands;
 
 public sealed class UpdateCommand : ICommand
@@ -16,10 +9,7 @@ public sealed class UpdateCommand : ICommand
     {
         Logger.Header("МГНОВЕННОЕ ОБНОВЛЕНИЕ");
 
-        var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        var url = isWin
-            ? "https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-win.exe"
-            : "https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-linux";
+        var url = "https://github.com/irovbyte/Uni-Sentinel/releases/latest/download/uni-sentinel-linux";
 
         var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
 
@@ -40,42 +30,22 @@ public sealed class UpdateCommand : ICommand
 
                 var newData = await response.Content.ReadAsByteArrayAsync();
 
-                if (isWin)
+                if (File.Exists(currentExe))
                 {
-                    var oldExe = currentExe + ".old";
-                    if (File.Exists(oldExe))
-                    {
-                        File.Delete(oldExe);
-                    }
-                    File.Move(currentExe, oldExe);
-                    await File.WriteAllBytesAsync(currentExe, newData);
+                    File.Delete(currentExe);
                 }
-                else
+                await File.WriteAllBytesAsync(currentExe, newData);
+                var chmodInfo = new ProcessStartInfo("chmod", $"+x \"{currentExe}\"") { UseShellExecute = false };
+                using var p = Process.Start(chmodInfo);
+                if (p != null)
                 {
-                    if (File.Exists(currentExe))
-                    {
-                        File.Delete(currentExe);
-                    }
-                    await File.WriteAllBytesAsync(currentExe, newData);
-                    var chmodInfo = new ProcessStartInfo("chmod", $"+x \"{currentExe}\"") { UseShellExecute = false };
-                    using var p = Process.Start(chmodInfo);
-                    if (p != null)
-                    {
-                        await p.WaitForExitAsync();
-                    }
+                    await p.WaitForExitAsync();
                 }
             }
             catch (UnauthorizedAccessException)
             {
                 Logger.Fail($"Нет прав на запись в {currentExe}.");
-                if (isWin)
-                {
-                    Logger.Warning("Запусти PowerShell/Терминал от имени Администратора и попробуй снова.");
-                }
-                else
-                {
-                    Logger.Warning("Попробуй запустить обновление через sudo: sudo uni-sentinel update");
-                }
+                Logger.Warning("Попробуй запустить обновление через sudo: sudo uni-sentinel update");
                 Environment.Exit(1);
             }
             catch (Exception ex)

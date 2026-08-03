@@ -11,13 +11,6 @@ echo -e "${C_TITLE}======================================${C_RESET}"
 echo -e "${C_TITLE}  🚀 UNI-SENTINEL AUTO-INSTALLER 🚀   ${C_RESET}"
 echo -e "${C_TITLE}======================================${C_RESET}\n"
 
-echo -e "Какой стек технологий защищаем, Shadow Monarch?"
-echo -e "  1) ${C_MAIN}C / C++${C_RESET} (Make, GCC, Valgrind)"
-echo -e "  2) ${C_OK}C# / .NET${C_RESET} (.NET 10 SDK)"
-echo -e "  3) ${C_TITLE}HTML / Blazor${C_RESET} (npm, prettier, xamlstyler)"
-echo -e "  4) ${C_WARN}Всё и сразу${C_RESET} (Titan Mode)"
-read -p "Выбери номер [1-4]: " STACK_CHOICE </dev/tty
-
 PM=""
 if command -v apt-get &> /dev/null; then PM="apt-get"
 elif command -v pacman &> /dev/null; then PM="pacman"
@@ -25,18 +18,8 @@ elif command -v dnf &&> /dev/null; then PM="dnf"
 fi
 
 DEPS="git curl "
-if [[ "$STACK_CHOICE" == "1" || "$STACK_CHOICE" == "3" ]]; then
-    DEPS+="clang build-essential valgrind lcov cppcheck "
-fi
-if [[ "$STACK_CHOICE" == "2" || "$STACK_CHOICE" == "3" ]]; then
-    if ! command -v dotnet &> /dev/null || [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then
-        DEPS+="dotnet-sdk-10.0 "
-    fi
-fi
-if [[ "$STACK_CHOICE" == "3" || "$STACK_CHOICE" == "4" ]]; then
-    if ! command -v npm &> /dev/null; then
-        DEPS+="npm "
-    fi
+if ! command -v dotnet &> /dev/null || [ "$(dotnet --version 2>/dev/null | cut -d. -f1)" != "10" ]; then
+    DEPS+="dotnet-sdk-10.0 "
 fi
 
 if [ "$DEPS" != "git curl " ] && [ -n "$PM" ]; then
@@ -69,15 +52,7 @@ else
     fi
 fi
 
-if [[ "$STACK_CHOICE" == "3" || "$STACK_CHOICE" == "4" ]]; then
-    echo -e "\n${C_TITLE}[+] Установка UI-инструментов...${C_RESET}"
-    if ! command -v xstyler &> /dev/null; then
-        dotnet tool install -g xamlstyler.console || true
-    fi
-    if ! command -v prettier &> /dev/null; then
-        sudo npm install -g prettier @prettier/plugin-xml || true
-    fi
-fi
+
 
 echo -e "\n${C_OK}✅ УСТАНОВКА ЗАВЕРШЕНА!${C_RESET}"
 echo -e "Твой прогресс сохранен. Попробуй: ${C_TITLE}uni-sentinel help${C_RESET}\n"

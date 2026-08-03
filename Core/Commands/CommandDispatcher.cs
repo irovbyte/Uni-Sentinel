@@ -1,10 +1,6 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-
 namespace UniSentinel.Core.Commands;
 
-public sealed class CommandDispatcher(ICommand[] commands)
+public sealed class CommandDispatcher(IEnumerable<ICommand> commands)
 {
     public async Task RunAsync(string[] args)
     {

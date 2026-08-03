@@ -1,12 +1,8 @@
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
+using UniSentinel.Core.Config;
 
 namespace UniSentinel.Core.Commands;
 
-public sealed class UninstallCommand : ICommand
+public sealed class UninstallCommand(IAppEnvironment env) : ICommand
 {
     public string Name => "uninstall";
     public string Description => "Полностью удалить систему и сбросить прогресс";
@@ -20,25 +16,13 @@ public sealed class UninstallCommand : ICommand
         {
             try
             {
-                var isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var home = Path.GetDirectoryName(env.RootDir) ?? "";
 
-                if (isWin)
+                var info = new ProcessStartInfo("sudo", "rm -f /usr/local/bin/uni-sentinel") { UseShellExecute = false };
+                using var p = Process.Start(info);
+                if (p != null)
                 {
-                    var binPath = Path.Combine(home, ".uni-sentinel", "bin", "uni-sentinel.exe");
-                    if (File.Exists(binPath))
-                    {
-                        await Task.Run(() => File.Delete(binPath));
-                    }
-                }
-                else
-                {
-                    var info = new ProcessStartInfo("sudo", "rm -f /usr/local/bin/uni-sentinel") { UseShellExecute = false };
-                    using var p = Process.Start(info);
-                    if (p != null)
-                    {
-                        await p.WaitForExitAsync();
-                    }
+                    await p.WaitForExitAsync();
                 }
 
                 var oldScoreFile = Path.Combine(home, ".uni-sentinel-score");

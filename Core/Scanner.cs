@@ -1,18 +1,30 @@
-using System.Collections.Frozen;
-using UniSentinel.Handlers.C;
 namespace UniSentinel.Core;
 
-internal sealed class Scanner(string rootPath)
+public interface IScanner
 {
-    private readonly string _root = Path.GetFullPath(rootPath);
+    public void Initialize(string rootPath);
+    public List<string> GetProjectFiles();
+    public IProjectHandler? DetectHandler();
+    public List<string> GetSmartDumpFiles(IProjectHandler? handler);
+}
+
+internal sealed class Scanner(IEnumerable<IProjectHandler> handlers) : IScanner
+{
+    private string _root = string.Empty;
+
+    public void Initialize(string rootPath)
+    {
+        _root = Path.GetFullPath(rootPath);
+        _cachedFiles = null;
+    }
+
     private static readonly FrozenSet<string> t_excludeDirs = new[]
     {
         ".git", ".vscode", "materials", "bin", "obj", ".uni-sentinel", "BuildCache", ".uni-cache"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     private static readonly FrozenSet<string> t_targetExtensions = new[]
     {
-        ".cs", ".c", ".h", ".cpp", ".hpp", ".csproj", ".sln", ".slnx", ".json",
-    ".sh", ".ps1", ".yml", ".yaml"
+        ".cs", ".csproj", ".sln", ".slnx", ".json", ".sh", ".yml", ".yaml"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     private List<string>? _cachedFiles;
     public List<string> GetProjectFiles()
@@ -28,66 +40,46 @@ internal sealed class Scanner(string rootPath)
             var parts = relPath.Split(Path.DirectorySeparatorChar);
             return !parts.Any(p => (p.StartsWith('.') && p.Length > 1) || t_excludeDirs.Contains(p));
         })
-        .Where(file => t_targetExtensions.Contains(Path.GetExtension(file)) ||
-                       Path.GetFileName(file) is "Makefile")];
+        .Where(file => t_targetExtensions.Contains(Path.GetExtension(file)))];
         return _cachedFiles;
     }
-    public BaseHandler? DetectHandler()
+    public IProjectHandler? DetectHandler()
     {
         var files = GetProjectFiles();
-        var (cs, c, h) = (0, 0, 0);
-        var hasDotnet = false;
-        foreach (var f in files)
+
+        foreach (var handler in handlers)
         {
-            var ext = Path.GetExtension(f).ToLowerInvariant();
-            switch (ext)
+            if (handler.CanHandle(files))
             {
-                case ".cs":
-                    cs++;
-                    break;
-                case ".c" or ".cpp":
-                    c++;
-                    break;
-                case ".h" or ".hpp":
-                    h++;
-                    break;
-                case ".csproj" or ".slnx" or ".sln":
-                    hasDotnet = true;
-                    break;
-                default:
-                    break;
+                handler.Initialize(_root, files);
+                PrintHeader(handler.Name, [$"Найдено файлов для {handler.Name}: {files.Count} ф."]);
+                return handler;
             }
         }
-        var (_, _, accent, _, _) = ScoreManager.GetRankInfo();
-        if (hasDotnet || cs > 0)
-        {
-            PrintHeader("C# / .NET 10", accent, [$"Исходный код C#: {cs} ф."]);
-            return new CSharpHandler(_root, files);
-        }
-        if (c > 0)
-        {
-            PrintHeader("C / C++", accent, [$"Исходный код: {c} ф.", $"Заголовки: {h} ф."]);
-            return new CHandler(_root, files);
-        }
+
         Logger.Warning("Подходящие файлы проектов не найдены.");
         return null;
     }
-    private static void PrintHeader(string title, string color, string[] stats)
+    private static void PrintHeader(string title, string[] stats)
     {
-        Console.WriteLine($"{color}--- АНАЛИЗ ПРОЕКТА ({title}) ---{Settings.Colors.Reset}");
+        var rule = new Spectre.Console.Rule($"[bold]{title}[/]")
+        {
+            Justification = Spectre.Console.Justify.Left
+        };
+        Spectre.Console.AnsiConsole.Write(rule);
+
         foreach (var stat in stats)
         {
-            Console.WriteLine($" {Settings.Colors.Gray}●{Settings.Colors.Reset} {stat}");
+            Spectre.Console.AnsiConsole.MarkupLine($" [grey]●[/] {stat}");
         }
-        Console.WriteLine($"{color}{new string('-', title.Length + 24)}{Settings.Colors.Reset}");
+        Spectre.Console.AnsiConsole.WriteLine();
     }
-    public List<string> GetSmartDumpFiles(BaseHandler? handler)
+    public List<string> GetSmartDumpFiles(IProjectHandler? handler)
     {
         var all = GetProjectFiles();
-        return handler switch
+        return handler?.Name switch
         {
-            CSharpHandler => [.. all.Where(f => f.EndsWith(".cs") || f.EndsWith(".csproj") || f.EndsWith(".slnx") || f.EndsWith(".json"))],
-            CHandler => [.. all.Where(f => f.EndsWith(".c") || f.EndsWith(".h") || Path.GetFileName(f) == "Makefile")],
+            "C# / .NET" => [.. all.Where(f => f.EndsWith(".cs") || f.EndsWith(".csproj") || f.EndsWith(".slnx") || f.EndsWith(".json"))],
             _ => all
         };
     }

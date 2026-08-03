@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-
 namespace UniSentinel.Core.Commands;
 
 public sealed class GitHookCommand : ICommand

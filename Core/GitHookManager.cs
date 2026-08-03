@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 namespace UniSentinel.Core;
 
 internal static class GitHookManager
@@ -16,29 +14,22 @@ internal static class GitHookManager
         var exePath = Environment.ProcessPath ?? "uni-sentinel";
         var hookContent = $"#!/bin/sh\n\"{exePath}\" check\n";
         await File.WriteAllBytesAsync(hookPath, System.Text.Encoding.UTF8.GetBytes(hookContent));
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        try
         {
-            try
+            var startInfo = new ProcessStartInfo("chmod", $"+x \"{hookPath}\"")
             {
-                var startInfo = new ProcessStartInfo("chmod", $"+x \"{hookPath}\"")
-                {
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                //ghbdtnb
-
-                using var p = Process.Start(startInfo);
-                if (p is not null)
-                {
-
-
-                    await p.WaitForExitAsync();
-                }
-            }
-            catch (Exception ex)
+                CreateNoWindow = true,
+                UseShellExecute = false
+            };
+            using var p = Process.Start(startInfo);
+            if (p is not null)
             {
-                Logger.Warning($"Не удалось установить права на исполнение: {ex.Message}");
+                await p.WaitForExitAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Не удалось установить права на исполнение: {ex.Message}");
         }
         Logger.Success("Sentinel активирован! Твои коммиты под защитой.");
     }
