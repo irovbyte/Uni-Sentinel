@@ -16,13 +16,13 @@ internal static class Logger
         AnsiConsole.Write(rule);
     }
 
-    public static void Success(string m) => AnsiConsole.MarkupLine($"[bold green][OK][/] {m}");
-    public static void Fail(string m) => AnsiConsole.MarkupLine($"[bold red][ERR][/] {m}");
-    public static void Warning(string m) => AnsiConsole.MarkupLine($"[bold yellow][!][/] {m}");
+    public static void Success(string m) => AnsiConsole.MarkupLine($"[bold green][[OK]][/] {Markup.Escape(m)}");
+    public static void Fail(string m) => AnsiConsole.MarkupLine($"[bold red][[ERR]][/] {Markup.Escape(m)}");
+    public static void Warning(string m) => AnsiConsole.MarkupLine($"[bold yellow][[!]][/] {Markup.Escape(m)}");
 
     public static void Info(string m)
     {
-        AnsiConsole.Markup($"[grey][...][/] ");
+        AnsiConsole.Markup($"[grey][[...]][/] ");
         TypeEffect(m);
         Console.WriteLine();
     }
