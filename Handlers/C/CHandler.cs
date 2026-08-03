@@ -60,7 +60,23 @@ internal sealed partial class CHandler : BaseHandler
         var branch = res.Out.Trim();
         if (branch is "master" or "main")
         {
-            Logger.Fail($"Ветка '{branch}' запрещена! Используй 'develop'.");
+            Logger.Fail($"Ветка '{branch}' запрещена! В Школе 21 работаем в 'develop'.");
+            Console.Write($" {Settings.Colors.LycorisAccent}Перейти в ветку 'develop' автоматически? [y/N]: {Settings.Colors.Reset}");
+            if (Console.ReadLine()?.Trim().ToLowerInvariant() == "y")
+            {
+                var checkout = await RunAsync("git", "checkout -b develop");
+                if (checkout.Code != 0 && checkout.Err.Contains("already exists"))
+                {
+                    checkout = await RunAsync("git", "checkout develop");
+                }
+
+                if (checkout.Code == 0)
+                {
+                    Logger.Success("Успешно переключились на ветку 'develop'.");
+                    return (true, 0);
+                }
+                Logger.Fail("Не удалось переключиться на 'develop'.");
+            }
             return (false, 0);
         }
         Logger.Success($"Активная ветка: {branch}.");

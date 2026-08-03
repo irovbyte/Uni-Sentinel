@@ -24,7 +24,8 @@ internal sealed class Scanner(IEnumerable<IProjectHandler> handlers) : IScanner
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     private static readonly FrozenSet<string> t_targetExtensions = new[]
     {
-        ".cs", ".csproj", ".sln", ".slnx", ".json", ".sh", ".yml", ".yaml"
+        ".cs", ".csproj", ".sln", ".slnx", ".json", ".sh", ".yml", ".yaml",
+        ".c", ".cpp", ".h"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     private List<string>? _cachedFiles;
     public List<string> GetProjectFiles()
@@ -40,7 +41,16 @@ internal sealed class Scanner(IEnumerable<IProjectHandler> handlers) : IScanner
             var parts = relPath.Split(Path.DirectorySeparatorChar);
             return !parts.Any(p => (p.StartsWith('.') && p.Length > 1) || t_excludeDirs.Contains(p));
         })
-        .Where(file => t_targetExtensions.Contains(Path.GetExtension(file)))];
+        .Where(file =>
+        {
+            var ext = Path.GetExtension(file);
+            if (string.IsNullOrEmpty(ext))
+            {
+                var name = Path.GetFileName(file);
+                return name.Equals("Makefile", StringComparison.OrdinalIgnoreCase);
+            }
+            return t_targetExtensions.Contains(ext);
+        })];
         return _cachedFiles;
     }
     public IProjectHandler? DetectHandler()
