@@ -10,6 +10,7 @@ public class Program
 
         _ = services.AddSingleton<IAppEnvironment, AppEnvironment>();
         _ = services.AddTransient<IProjectHandler, CSharpHandler>();
+        _ = services.AddTransient<IProjectHandler, CHandler>();
         _ = services.AddTransient<IScanner, Scanner>();
         _ = services.AddSingleton<CommandDispatcher>();
         _ = services.AddTransient<ICommand, HelpCommand>();
