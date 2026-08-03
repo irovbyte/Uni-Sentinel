@@ -16,7 +16,17 @@ internal static class CStyleManager
 
         if (existingConfigContent == null)
         {
-            await File.WriteAllTextAsync(localConfig, UltraConfig);
+            var schoolConfig = files.FirstOrDefault(f => Path.GetFileName(f) == ".clang-format");
+            if (schoolConfig != null)
+            {
+                Logger.Info("Найден школьный конфиг .clang-format. Используем его.");
+                File.Copy(schoolConfig, localConfig, true);
+            }
+            else
+            {
+                Logger.Warning("Оригинальный .clang-format не найден! Используем дефолтный Google-стиль.");
+                await File.WriteAllTextAsync(localConfig, UltraConfig);
+            }
         }
         var cFiles = files.Where(f => f.EndsWith(".c", StringComparison.OrdinalIgnoreCase) ||
                                      f.EndsWith(".h", StringComparison.OrdinalIgnoreCase)).ToList();

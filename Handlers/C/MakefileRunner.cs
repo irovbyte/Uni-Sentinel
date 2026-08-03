@@ -65,6 +65,14 @@ internal static partial class MakefileRunner
                  .Select(m => m.Groups[1].Value)
                  .ToHashSet();
 
+            var mandatory = new[] { "all", "clean", "fclean", "re" };
+            var missing = mandatory.Where(m => !targets.Contains(m)).ToList();
+            if (missing.Count > 0)
+            {
+                Logger.Fail($"В Makefile отсутствуют обязательные таргеты: {string.Join(", ", missing)}");
+                allOk = false;
+            }
+
             var queue = new List<string>();
             if (targets.Contains("all"))
             {
