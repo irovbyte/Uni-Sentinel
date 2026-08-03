@@ -79,16 +79,16 @@ internal static partial class MakefileRunner
                 }
             }
 
-            var testTarget = targets.FirstOrDefault(t => t is "test" or "tests" or "check");
-            if (testTarget != null)
+            var testTargets = targets.Where(t => t.StartsWith("test") || t.StartsWith("check")).ToList();
+            if (testTargets.Count > 0)
             {
-                queue.Add(testTarget);
+                queue.AddRange(testTargets);
             }
 
-            var covTarget = targets.FirstOrDefault(t => t is "gcov_report" or "coverage" or "gcov");
-            if (covTarget != null)
+            var covTargets = targets.Where(t => t.StartsWith("gcov") || t.StartsWith("coverage")).ToList();
+            if (covTargets.Count > 0)
             {
-                queue.Add(covTarget);
+                queue.AddRange(covTargets);
             }
 
             // Create Shadow Makefile to prevent deletion during Phase 2
